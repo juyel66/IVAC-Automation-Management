@@ -35,6 +35,7 @@ export const LicensesPage: React.FC = () => {
     license: License;
   } | null>(null);
   const [copiedKey, setCopiedKey] = useState(false);
+  const [copiedRowId, setCopiedRowId] = useState<string | null>(null);
 
   // Renewal Modal
   const [renewTarget, setRenewTarget] = useState<License | null>(null);
@@ -210,8 +211,28 @@ export const LicensesPage: React.FC = () => {
                 data?.items.map((lic) => (
                   <tr key={lic.id} className="hover:bg-slate-800/40 transition-colors">
                     <td className="px-5 py-3.5">
-                      <div className="font-mono text-xs font-bold text-emerald-400">
-                        {lic.keyMasked}
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs font-bold text-emerald-400">
+                          {lic.plainKey || lic.keyMasked}
+                        </span>
+                        {lic.plainKey && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigator.clipboard.writeText(lic.plainKey!);
+                              setCopiedRowId(lic.id);
+                              setTimeout(() => setCopiedRowId(null), 2000);
+                            }}
+                            title="Copy Full License Key"
+                            className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-emerald-400 transition-colors"
+                          >
+                            {copiedRowId === lic.id ? (
+                              <Check className="h-3.5 w-3.5 text-emerald-400 stroke-[3]" />
+                            ) : (
+                              <Copy className="h-3.5 w-3.5" />
+                            )}
+                          </button>
+                        )}
                       </div>
                       <div className="text-[10px] text-slate-500 font-mono">ID: {lic.id.slice(0, 8)}...</div>
                     </td>
