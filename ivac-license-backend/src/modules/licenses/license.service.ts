@@ -16,6 +16,7 @@ export class LicenseService {
       data: {
         keyHash,
         keyMasked,
+        plainKey: rawKey,
         status: 'PENDING',
         validityDays: input.validityDays,
         maxInstallations: input.maxInstallations,
@@ -104,6 +105,7 @@ export class LicenseService {
       return {
         id: lic.id,
         keyMasked: lic.keyMasked,
+        plainKey: lic.plainKey,
         status: currentStatus,
         validityDays: lic.validityDays,
         activatedAt: lic.activatedAt,
@@ -332,6 +334,7 @@ export class LicenseService {
       data: {
         keyHash: newHash,
         keyMasked: newMasked,
+        plainKey: newRawKey,
         updatedByAdminId: adminId,
       },
     });

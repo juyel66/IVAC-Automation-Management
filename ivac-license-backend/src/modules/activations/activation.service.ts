@@ -59,130 +59,308 @@ export class ActivationService {
     const keyHash = hashLicenseKey(normalizedKey);
     const now = new Date();
 
-    return await prisma.$transaction(async (tx) => {
-      // 1. Fetch license
-      const license = await tx.license.findUnique({
-        where: { keyHash },
-        include: {
-          installations: true,
-        },
-      });
+    // 1. Independent read-only pre-check: Reject invalid, revoked, suspended, or expired licenses immediately
+    // without acquiring or holding a database transaction lock.
+    const preliminaryLicense = await prisma.license.findUnique({
+      where: { keyHash },
+      select: {
+        id: true,
+        status: true,
+        expiresAt: true,
+      },
+    });
 
-      if (!license) {
-        throw { status: 404, message: 'Invalid license key. Please check and try again.', code: 'INVALID_LICENSE_KEY' };
-      }
+    if (!preliminaryLicense) {
+      throw { status: 404, message: 'Invalid license key. Please check and try again.', code: 'INVALID_LICENSE_KEY' };
+    }
+    if (preliminaryLicense.status === 'REVOKED') {
+      throw { status: 403, message: 'This license has been revoked by administration.', code: 'LICENSE_REVOKED' };
+    }
+    if (preliminaryLicense.status === 'SUSPENDED') {
+      throw { status: 403, message: 'This license has been temporarily suspended.', code: 'LICENSE_SUSPENDED' };
+    }
+    if (preliminaryLicense.expiresAt && preliminaryLicense.expiresAt < now) {
+      throw {
+        status: 403,
+        message: `This license expired on ${preliminaryLicense.expiresAt.toISOString()}. Please renew your subscription.`,
+        code: 'LICENSE_EXPIRED',
+      };
+    }
 
-      // 2. Validate current status
-      if (license.status === 'REVOKED') {
-        throw { status: 403, message: 'This license has been revoked by administration.', code: 'LICENSE_REVOKED' };
-      }
-      if (license.status === 'SUSPENDED') {
-        throw { status: 403, message: 'This license has been temporarily suspended.', code: 'LICENSE_SUSPENDED' };
-      }
+    // 2. Execute minimal atomic operations inside an interactive transaction with 10s timeout
+    let txResult: {
+      updatedLicense: any;
+      finalActiveCount: number;
+      auditAction: any | null;
+    };
 
-      // Check if previously expired
-      if (license.expiresAt && license.expiresAt < now) {
-        throw {
-          status: 403,
-          message: `This license expired on ${license.expiresAt.toISOString()}. Please renew your subscription.`,
-          code: 'LICENSE_EXPIRED',
-        };
-      }
-
-      // 3. Handle activation timestamp establishment
-      let updatedLicense = license;
-      if (!license.activatedAt) {
-        // First activation: establish activation and expiry
-        const expiresAt = new Date(now.getTime() + license.validityDays * 24 * 3600 * 1000);
-        updatedLicense = await tx.license.update({
-          where: { id: license.id },
-          data: {
-            status: 'ACTIVE',
-            activatedAt: now,
-            expiresAt,
-            lastValidatedAt: now,
-          },
-          include: {
-            installations: true,
-          },
-        });
-      } else {
-        // Subsequent activation - update lastValidatedAt only
-        updatedLicense = await tx.license.update({
-          where: { id: license.id },
-          data: { lastValidatedAt: now },
-          include: {
-            installations: true,
-          },
-        });
-      }
-
-      // 4. Check installation limit and register installation atomically
-      const allInstallations = (updatedLicense.installations && Array.isArray(updatedLicense.installations))
-        ? updatedLicense.installations
-        : await tx.licenseInstallation.findMany({ where: { licenseId: updatedLicense.id } });
-
-      const activeInstallations = allInstallations.filter((i: any) => i.status === 'ACTIVE');
-      const existingInstallation = allInstallations.find(
-        (i: any) => i.installationId === input.installationId
-      );
-
-      if (existingInstallation) {
-        if (existingInstallation.status === 'ACTIVE') {
-          // Already active installation, update last seen
-          await tx.licenseInstallation.update({
-            where: { id: existingInstallation.id },
-            data: {
-              lastSeenAt: now,
-              installationLabel: input.installationLabel || existingInstallation.installationLabel,
+    try {
+      txResult = await prisma.$transaction(
+        async (tx) => {
+          // Re-fetch latest license state inside transaction
+          const license = await tx.license.findUnique({
+            where: { id: preliminaryLicense.id },
+            select: {
+              id: true,
+              status: true,
+              validityDays: true,
+              activatedAt: true,
+              expiresAt: true,
+              maxInstallations: true,
             },
           });
-        } else {
-          // Was previously revoked, reactivating requires slot
-          if (activeInstallations.length >= updatedLicense.maxInstallations) {
+
+          if (!license) {
+            throw { status: 404, message: 'Invalid license key. Please check and try again.', code: 'INVALID_LICENSE_KEY' };
+          }
+          if (license.status === 'REVOKED') {
+            throw { status: 403, message: 'This license has been revoked by administration.', code: 'LICENSE_REVOKED' };
+          }
+          if (license.status === 'SUSPENDED') {
+            throw { status: 403, message: 'This license has been temporarily suspended.', code: 'LICENSE_SUSPENDED' };
+          }
+          if (license.expiresAt && license.expiresAt < now) {
             throw {
-              status: 409,
-              message: `Maximum browser installation limit reached (${activeInstallations.length}/${updatedLicense.maxInstallations}). Please release another browser first.`,
-              code: 'INSTALLATION_LIMIT_REACHED',
+              status: 403,
+              message: `This license expired on ${license.expiresAt.toISOString()}. Please renew your subscription.`,
+              code: 'LICENSE_EXPIRED',
             };
           }
-          await tx.licenseInstallation.update({
-            where: { id: existingInstallation.id },
-            data: {
-              status: 'ACTIVE',
-              revokedAt: null,
-              revokedBy: null,
-              lastSeenAt: now,
-              installationLabel: input.installationLabel || existingInstallation.installationLabel,
-            },
-          });
-          activeInstallations.push(existingInstallation);
-        }
-      } else {
-        // New installation
-        if (activeInstallations.length >= updatedLicense.maxInstallations) {
-          throw {
-            status: 409,
-            message: `Maximum browser installation limit reached (${activeInstallations.length}/${updatedLicense.maxInstallations}). Please release another browser first.`,
-            code: 'INSTALLATION_LIMIT_REACHED',
+
+          // Concurrently fetch existing global installation & active installations for this license
+          const [existingGlobalInstallation, activeInstallationsForLicense] = await Promise.all([
+            tx.licenseInstallation.findUnique({
+              where: { installationId: input.installationId },
+            }),
+            tx.licenseInstallation.findMany({
+              where: { licenseId: license.id, status: 'ACTIVE' },
+              select: { id: true },
+            }),
+          ]);
+
+          let finalActiveCount = activeInstallationsForLicense.length;
+          let auditAction: any = null;
+
+          if (existingGlobalInstallation) {
+            if (existingGlobalInstallation.licenseId !== license.id) {
+              // Check if this installation is actively registered under another valid license
+              const previousLicense = await tx.license.findUnique({
+                where: { id: existingGlobalInstallation.licenseId },
+                select: { status: true, expiresAt: true },
+              });
+
+              const isPreviouslyActive =
+                existingGlobalInstallation.status === 'ACTIVE' &&
+                previousLicense &&
+                previousLicense.status === 'ACTIVE' &&
+                (!previousLicense.expiresAt || previousLicense.expiresAt > now);
+
+              if (isPreviouslyActive) {
+                throw {
+                  status: 409,
+                  message: 'This browser installation is currently active under another license. Please release it from the original license first before activating a new key.',
+                  code: 'INSTALLATION_ALREADY_REGISTERED',
+                };
+              }
+
+              // Installation was released or previous license expired -> transfer to this license
+              if (activeInstallationsForLicense.length >= license.maxInstallations) {
+                throw {
+                  status: 409,
+                  message: `Maximum browser installation limit reached (${activeInstallationsForLicense.length}/${license.maxInstallations}). Please release another browser first.`,
+                  code: 'INSTALLATION_LIMIT_REACHED',
+                };
+              }
+
+              await tx.licenseInstallation.update({
+                where: { id: existingGlobalInstallation.id },
+                data: {
+                  licenseId: license.id,
+                  status: 'ACTIVE',
+                  revokedAt: null,
+                  revokedBy: null,
+                  lastSeenAt: now,
+                  installationLabel: input.installationLabel || existingGlobalInstallation.installationLabel,
+                },
+              });
+              finalActiveCount = activeInstallationsForLicense.length + 1;
+
+              auditAction = {
+                action: 'INSTALLATION_TRANSFERRED',
+                entityType: 'INSTALLATION',
+                entityId: existingGlobalInstallation.id,
+                details: {
+                  fromLicenseId: existingGlobalInstallation.licenseId,
+                  toLicenseId: license.id,
+                  installationId: input.installationId,
+                  previousStatus: existingGlobalInstallation.status,
+                },
+              };
+            } else if (existingGlobalInstallation.status === 'ACTIVE') {
+              // Belongs to this license and is already active -> update lastSeenAt
+              await tx.licenseInstallation.update({
+                where: { id: existingGlobalInstallation.id },
+                data: {
+                  lastSeenAt: now,
+                  installationLabel: input.installationLabel || existingGlobalInstallation.installationLabel,
+                },
+              });
+              finalActiveCount = activeInstallationsForLicense.length;
+            } else {
+              // Belongs to this license and was previously REVOKED -> reactivating requires an available slot
+              if (activeInstallationsForLicense.length >= license.maxInstallations) {
+                throw {
+                  status: 409,
+                  message: `Maximum browser installation limit reached (${activeInstallationsForLicense.length}/${license.maxInstallations}). Please release another browser first.`,
+                  code: 'INSTALLATION_LIMIT_REACHED',
+                };
+              }
+
+              await tx.licenseInstallation.update({
+                where: { id: existingGlobalInstallation.id },
+                data: {
+                  status: 'ACTIVE',
+                  revokedAt: null,
+                  revokedBy: null,
+                  lastSeenAt: now,
+                  installationLabel: input.installationLabel || existingGlobalInstallation.installationLabel,
+                },
+              });
+              finalActiveCount = activeInstallationsForLicense.length + 1;
+            }
+          } else {
+            // Brand new installation ID
+            if (activeInstallationsForLicense.length >= license.maxInstallations) {
+              throw {
+                status: 409,
+                message: `Maximum browser installation limit reached (${activeInstallationsForLicense.length}/${license.maxInstallations}). Please release another browser first.`,
+                code: 'INSTALLATION_LIMIT_REACHED',
+              };
+            }
+
+            try {
+              await tx.licenseInstallation.create({
+                data: {
+                  licenseId: license.id,
+                  installationId: input.installationId,
+                  installationLabel: input.installationLabel || null,
+                  firstActivatedAt: now,
+                  lastSeenAt: now,
+                  status: 'ACTIVE',
+                },
+              });
+              finalActiveCount = activeInstallationsForLicense.length + 1;
+            } catch (createErr: any) {
+              // Concurrency safety fallback: Handle race condition where another concurrent request registered this installationId
+              if (createErr.code === 'P2002' || createErr.message?.includes('Unique constraint failed')) {
+                const conflictInst = await tx.licenseInstallation.findUnique({
+                  where: { installationId: input.installationId },
+                });
+                if (conflictInst && conflictInst.licenseId === license.id) {
+                  finalActiveCount = activeInstallationsForLicense.length + 1;
+                } else if (conflictInst && conflictInst.licenseId !== license.id) {
+                  const previousLic = await tx.license.findUnique({
+                    where: { id: conflictInst.licenseId },
+                    select: { status: true, expiresAt: true },
+                  });
+                  const isConflictActive =
+                    conflictInst.status === 'ACTIVE' &&
+                    previousLic &&
+                    previousLic.status === 'ACTIVE' &&
+                    (!previousLic.expiresAt || previousLic.expiresAt > now);
+
+                  if (isConflictActive) {
+                    throw {
+                      status: 409,
+                      message: 'This browser installation is currently active under another license. Please release it from the original license first before activating a new key.',
+                      code: 'INSTALLATION_ALREADY_REGISTERED',
+                    };
+                  }
+
+                  await tx.licenseInstallation.update({
+                    where: { id: conflictInst.id },
+                    data: {
+                      licenseId: license.id,
+                      status: 'ACTIVE',
+                      revokedAt: null,
+                      revokedBy: null,
+                      lastSeenAt: now,
+                      installationLabel: input.installationLabel || conflictInst.installationLabel,
+                    },
+                  });
+                  finalActiveCount = activeInstallationsForLicense.length + 1;
+                } else {
+                  throw {
+                    status: 409,
+                    message: 'Installation conflict detected. Please retry.',
+                    code: 'INSTALLATION_CONFLICT',
+                  };
+                }
+              } else {
+                throw createErr;
+              }
+            }
+          }
+
+          // Single license update at completion of registration
+          let updatedLicense: any;
+          if (!license.activatedAt) {
+            const expiresAt = new Date(now.getTime() + license.validityDays * 24 * 3600 * 1000);
+            updatedLicense = await tx.license.update({
+              where: { id: license.id },
+              data: {
+                status: 'ACTIVE',
+                activatedAt: now,
+                expiresAt,
+                lastValidatedAt: now,
+              },
+            });
+          } else {
+            updatedLicense = await tx.license.update({
+              where: { id: license.id },
+              data: { lastValidatedAt: now },
+            });
+          }
+
+          return {
+            updatedLicense,
+            finalActiveCount,
+            auditAction,
           };
+        },
+        {
+          maxWait: 5000,
+          timeout: 10000,
         }
-
-        const newInstallation = await tx.licenseInstallation.create({
-          data: {
-            licenseId: updatedLicense.id,
-            installationId: input.installationId,
-            installationLabel: input.installationLabel || null,
-            firstActivatedAt: now,
-            lastSeenAt: now,
-            status: 'ACTIVE',
-          },
-        });
-        activeInstallations.push(newInstallation);
+      );
+    } catch (txErr: any) {
+      if (
+        txErr.code === 'P2028' ||
+        txErr.message?.includes('expired transaction') ||
+        txErr.message?.includes('Transaction timed out')
+      ) {
+        throw {
+          status: 503,
+          message: 'Activation request timed out under high load. Please retry in a few moments.',
+          code: 'TRANSACTION_TIMEOUT',
+        };
       }
+      throw txErr;
+    }
 
-      return this.formatEntitlement(updatedLicense, input.installationId, activeInstallations.length);
-    });
+    // Post-transaction: non-blocking audit logging outside transaction
+    if (txResult.auditAction) {
+      AuditService.log({
+        ...txResult.auditAction,
+        ipAddress,
+      }).catch((err) => console.error('[AuditService] Non-blocking audit error:', err));
+    }
+
+    return this.formatEntitlement(
+      txResult.updatedLicense,
+      input.installationId,
+      txResult.finalActiveCount
+    );
   }
 
   /**
@@ -294,57 +472,95 @@ export class ActivationService {
     const keyHash = hashLicenseKey(normalizeLicenseKey(input.licenseKey));
     const now = new Date();
 
-    return await prisma.$transaction(async (tx) => {
-      const license = await tx.license.findUnique({
-        where: { keyHash },
-        include: { installations: true },
-      });
+    let releaseAudit: any = null;
+    let txResult: any;
 
-      if (!license) {
-        throw { status: 404, message: 'Invalid license key provided.', code: 'INVALID_LICENSE_KEY' };
-      }
+    try {
+      txResult = await prisma.$transaction(
+        async (tx) => {
+          const license = await tx.license.findUnique({
+            where: { keyHash },
+            select: {
+              id: true,
+              maxInstallations: true,
+              installations: {
+                select: { id: true, installationId: true, status: true },
+              },
+            },
+          });
 
-      const installation = license.installations.find(
-        (i) => i.installationId === input.installationId
-      );
+          if (!license) {
+            throw { status: 404, message: 'Invalid license key provided.', code: 'INVALID_LICENSE_KEY' };
+          }
 
-      if (!installation) {
-        throw { status: 404, message: 'Installation not found under this license.', code: 'INSTALLATION_NOT_FOUND' };
-      }
+          const installation = license.installations.find(
+            (i: any) => i.installationId === input.installationId
+          );
 
-      if (installation.status === 'REVOKED') {
-        return { message: 'Installation was already released.' };
-      }
+          if (!installation) {
+            throw { status: 404, message: 'Installation not found under this license.', code: 'INSTALLATION_NOT_FOUND' };
+          }
 
-      // Mark installation as revoked
-      await tx.licenseInstallation.update({
-        where: { id: installation.id },
-        data: {
-          status: 'REVOKED',
-          revokedAt: now,
-          revokedBy: 'USER',
+          if (installation.status === 'REVOKED') {
+            return { message: 'Installation was already released.' };
+          }
+
+          // Mark installation as revoked
+          await tx.licenseInstallation.update({
+            where: { id: installation.id },
+            data: {
+              status: 'REVOKED',
+              revokedAt: now,
+              revokedBy: 'USER',
+            },
+          });
+
+          releaseAudit = {
+            action: 'INSTALLATION_RELEASED_BY_USER',
+            entityType: 'INSTALLATION',
+            entityId: installation.id,
+            details: { licenseId: license.id, installationId: input.installationId },
+          };
+
+          const remainingActive = license.installations.filter(
+            (i: any) => i.status === 'ACTIVE' && i.id !== installation.id
+          ).length;
+
+          return {
+            success: true,
+            message: 'Browser installation released successfully. A license slot is now freed.',
+            activeInstallationsCount: remainingActive,
+            availableSlots: Math.max(0, license.maxInstallations - remainingActive),
+          };
         },
-      });
+        {
+          maxWait: 5000,
+          timeout: 10000,
+        }
+      );
+    } catch (txErr: any) {
+      if (
+        txErr.code === 'P2028' ||
+        txErr.message?.includes('expired transaction') ||
+        txErr.message?.includes('Transaction timed out')
+      ) {
+        throw {
+          status: 503,
+          message: 'Release request timed out under high load. Please retry in a few moments.',
+          code: 'TRANSACTION_TIMEOUT',
+        };
+      }
+      throw txErr;
+    }
 
-      await AuditService.log({
-        action: 'INSTALLATION_RELEASED_BY_USER',
-        entityType: 'INSTALLATION',
-        entityId: installation.id,
-        details: { licenseId: license.id, installationId: input.installationId },
+    if (releaseAudit) {
+      AuditService.log({
+        ...releaseAudit,
         ipAddress,
-      });
+      }).catch((err) => console.error('[AuditService] Non-blocking audit error:', err));
+    }
 
-      const remainingActive = license.installations.filter(
-        (i) => i.status === 'ACTIVE' && i.id !== installation.id
-      ).length;
-
-      return {
-        success: true,
-        message: 'Browser installation released successfully. A license slot is now freed.',
-        activeInstallationsCount: remainingActive,
-        availableSlots: Math.max(0, license.maxInstallations - remainingActive),
-      };
-    });
+    return txResult;
   }
 
   /**

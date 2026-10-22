@@ -94,17 +94,17 @@ export const mockPrisma = {
       inMemoryDb.licenses.push(record);
       return record;
     }),
-    findUnique: vi.fn(async ({ where, include }: any) => {
+    findUnique: vi.fn(async ({ where, include, select }: any) => {
       let lic: any = null;
       if (where.id) lic = inMemoryDb.licenses.find((l) => l.id === where.id);
       if (where.keyHash) lic = inMemoryDb.licenses.find((l) => l.keyHash === where.keyHash);
       if (!lic) return null;
 
       const result = { ...lic };
-      if (include?.installations) {
+      if (include?.installations || select?.installations) {
         result.installations = inMemoryDb.licenseInstallations.filter((i) => i.licenseId === lic.id);
       }
-      if (include?.paymentRequests) {
+      if (include?.paymentRequests || select?.paymentRequests) {
         result.paymentRequests = inMemoryDb.paymentRequests.filter((p) => p.licenseId === lic.id);
       }
       return result;
@@ -145,6 +145,12 @@ export const mockPrisma = {
   },
   licenseInstallation: {
     create: vi.fn(async ({ data }: any) => {
+      if (inMemoryDb.licenseInstallations.some((i) => i.installationId === data.installationId)) {
+        const error = new Error('Unique constraint failed on the fields: (installationId)') as any;
+        error.code = 'P2002';
+        error.meta = { target: ['installationId'] };
+        throw error;
+      }
       const record = { id: crypto.randomUUID(), createdAt: new Date(), updatedAt: new Date(), ...data };
       inMemoryDb.licenseInstallations.push(record);
       return record;
@@ -168,6 +174,7 @@ export const mockPrisma = {
     }),
     count: vi.fn(async ({ where }: any) => {
       let list = [...inMemoryDb.licenseInstallations];
+      if (where?.licenseId) list = list.filter((i) => i.licenseId === where.licenseId);
       if (where?.status) list = list.filter((i) => i.status === where.status);
       return list.length;
     }),
@@ -250,7 +257,10 @@ export const mockPrisma = {
     findMany: vi.fn(async () => inMemoryDb.auditLogs),
     count: vi.fn(async () => inMemoryDb.auditLogs.length),
   },
-  $transaction: vi.fn(async (cb: any) => {
-    return cb(mockPrisma);
+  $transaction: vi.fn(async (cb: any, _options?: any) => {
+    if (typeof cb === 'function') {
+      return cb(mockPrisma);
+    }
+    return Promise.all(cb);
   }),
 };

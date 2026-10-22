@@ -60,6 +60,7 @@ model License {
   id                   String                @id @default(uuid())
   keyHash              String                @unique
   keyMasked            String
+  plainKey             String?
   status               LicenseStatus         @default(PENDING)
   validityDays         Int                   @default(30)
   activatedAt          DateTime?

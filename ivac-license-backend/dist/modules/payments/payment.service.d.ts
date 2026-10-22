@@ -75,6 +75,7 @@ export declare class PaymentService {
                 status: import("@prisma/client").$Enums.LicenseStatus;
                 keyHash: string;
                 keyMasked: string;
+                plainKey: string | null;
                 validityDays: number;
                 activatedAt: Date | null;
                 expiresAt: Date | null;

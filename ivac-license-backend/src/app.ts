@@ -17,10 +17,18 @@ export function createApp(): Express {
   );
 
   // 2. CORS configuration
-  // Allow configured origins and chrome-extension:// origins
+  // Allow configured origins, IVAC portal, localhost, and chrome-extension:// origins
+  const ivacDomains = [
+    'https://appointment.ivacbd.com',
+    'http://appointment.ivacbd.com',
+    'https://ivacbd.com',
+    'http://ivacbd.com',
+  ];
+
   app.use(
     cors({
       origin: (origin, callback) => {
+        // Allow requests with no origin (e.g. mobile apps, curl, or server-to-server)
         if (!origin) return callback(null, true);
 
         // Allow any chrome-extension origin
@@ -36,18 +44,31 @@ export function createApp(): Express {
           return callback(null, true);
         }
 
-        // Allow explicitly configured origins
+        // Allow IVAC appointment website
+        if (
+          ivacDomains.includes(origin) ||
+          origin.endsWith('.ivacbd.com')
+        ) {
+          return callback(null, true);
+        }
+
+        // Allow explicitly configured origins or wildcard
         if (ENV.CORS_ORIGIN.includes('*') || ENV.CORS_ORIGIN.includes(origin)) {
           return callback(null, true);
         }
 
-        return callback(new Error(`CORS blocked request from origin: ${origin}`));
+        // Politely reject without throwing an unhandled 500 error
+        return callback(null, false);
       },
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+      optionsSuccessStatus: 204,
     })
   );
+
+  // Explicit preflight handling
+  app.options('*', cors());
 
   // 3. Body Parsing
   app.use(express.json({ limit: '1mb' }));
