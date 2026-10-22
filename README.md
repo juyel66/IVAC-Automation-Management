@@ -1,26 +1,28 @@
-# IVAC Premium System — Complete License & Automation Platform
+# IVAC Automation Management — Licensing Backend & Admin Portal
 
-Enterprise-grade software licensing, quota management, and manual payment verification suite for the **IVAC Automation Chrome Extension**.
+Enterprise-grade software licensing, browser quota management, and manual payment verification suite for the **IVAC Automation System**.
 
 ---
 
-## 1. Project Overview
+## 1. Project Overview & Workspace Structure
 
-The IVAC Premium suite consists of three clearly separated, independently maintainable, and deployable applications:
+This workspace is dedicated to the license management backend and the administrative management portal:
 
 ```text
-IVAC-Premium-System/
-├── IVAC-Automation/         # Manifest V3 Chrome Extension (Client)
-├── ivac-license-backend/    # Node.js + Express + TypeScript + PostgreSQL (API Server)
-├── ivac-license-admin/      # React 18 + Vite + Tailwind CSS + TanStack Query (Admin Portal)
-├── docs/                    # Technical Architecture, API, Security, & Deployment Guides
+IVAC-automation-management/
+├── ivac-license-backend/    # Node.js + Express + TypeScript + PostgreSQL Service (Port 5000)
+├── ivac-license-admin/      # React 18 + Vite + Tailwind CSS + TanStack Query Dashboard (Port 5173)
+├── docs/                    # Technical Manuals & Specifications
 │   ├── ARCHITECTURE.md      # High-level architecture, state machines, offline tolerance
 │   ├── API.md               # Complete REST API reference (request/response schemas)
 │   ├── SECURITY.md          # Cryptographic hashing, rate limiting, zero-knowledge privacy
 │   ├── DEPLOYMENT.md        # Production deployment, Nginx, PM2, and Docker guides
 │   └── TESTING.md           # Automated test reports and verification procedures
-└── README.md                # System-level root documentation
+├── package.json             # Root monorepo manager with concurrent dev runner
+└── README.md                # System documentation
 ```
+
+> **Note:** The IVAC Chrome Extension (`IVAC-Automation`) is maintained as an independent project outside this repository. It communicates with this backend strictly over standard HTTPS REST endpoints (`/api/v1`).
 
 ---
 
@@ -28,129 +30,78 @@ IVAC-Premium-System/
 
 | Component | Stack | Key Responsibilities |
 | :--- | :--- | :--- |
-| **Backend API** | Node.js, Express 5, TypeScript, PostgreSQL, Prisma ORM, Zod, bcrypt, JWT | License generation, SHA-256 key hashing, atomic installation quota enforcement, payment queue, audit logs |
+| **Backend API** | Node.js, Express 5, TypeScript, PostgreSQL (Neon), Prisma ORM, Zod, bcrypt, JWT | License generation, SHA-256 key hashing, atomic installation quota enforcement, payment queue, audit logs |
 | **Admin Portal** | React 18, TypeScript, Vite, Tailwind CSS, TanStack Query v5, Lucide Icons | Executive KPI dashboard, license generator with one-time reveal, browser slot manager, payment review |
-| **Chrome Extension** | Manifest V3, React 18, TypeScript, Vite, Tailwind CSS, Chrome Storage API | Automation workflow engine, license activation modal, installation release action, offline cache |
 
 ---
 
-## 3. Core Business & Licensing Rules
+## 3. Quickstart Guide (One-Command Development)
 
-1. **Generation Does Not Start Countdown:**
-   - Generating a key stores it in the `PENDING` state.
-   - Its validity period countdown begins strictly upon **first successful activation**.
-2. **Fixed Expiry Across Permitted Installations:**
-   - All browser installations linked to the same license share the exact same activation and expiry timestamps.
-   - Secondary activations, browser restarts, or reinstallations **never** reset or extend validity.
-3. **Atomic Browser Installation Limits:**
-   - The admin configures the maximum installation count (e.g. 1, 2, or 5 browsers) per license.
-   - Quotas are enforced on the backend within atomic database transactions.
-4. **Client-Initiated Installation Release:**
-   - Extension users can click **"Release This Installation"** to surrender their slot.
-   - The slot is instantly freed on the backend, allowing another device to activate the key.
-5. **Workflow Engine Enforcement:**
-   - In addition to disabling UI buttons, `workflowEngine.start()` asynchronously verifies server entitlement before running any applicant workflows.
-6. **Zero-Knowledge Privacy:**
-   - The license backend never collects or receives IVAC portal passwords, applicant OTPs, passport numbers, or uploaded visa application PDFs.
-
----
-
-## 4. Quickstart Guide (Local Development)
-
-### 4.1 Prerequisites
-- **Node.js:** v18+ (Node v20 or v22 recommended)
-- **Database:** PostgreSQL running on `localhost:5432` (or a remote PostgreSQL connection string)
-
----
-
-### 4.2 Step 1: Run the License Backend
+From the root of this workspace (`IVAC-automation-management`), you can install all dependencies and start both the backend API and admin frontend concurrently:
 
 ```bash
-cd ivac-license-backend
-
-# 1. Install dependencies
+# 1. Install root dependencies
 npm install
 
-# 2. Configure environment
-cp .env.example .env
-# Edit .env with your PostgreSQL DATABASE_URL
-
-# 3. Synchronize database schema and seed default data
-npx prisma db push
-npm run seed
-
-# 4. Start backend in development mode
+# 2. Start both Backend & Admin Frontend concurrently
 npm run dev
-# Server running at http://localhost:5000/api/v1
 ```
+
+### Server Endpoints
+- **Backend API:** `http://localhost:5000/api/v1`
+- **Backend Health Check:** `http://localhost:5000/api/v1/health`
+- **Admin Dashboard:** `http://localhost:5173`
+
+### Default Admin Credentials (Development Seed)
+- **Identifier:** `admin`
+- **Password:** `AdminPassword123!`
 
 ---
 
-### 4.3 Step 2: Run the Admin Dashboard
+## 4. PostgreSQL Database Configuration
 
-```bash
-cd ivac-license-admin
+The backend is connected to a live Neon PostgreSQL database using Prisma ORM.
 
-# 1. Install dependencies
-npm install
-
-# 2. Configure environment
-cp .env.example .env
-
-# 3. Start development server
-npm run dev
-# Dashboard running at http://localhost:5173
-```
-- Open `http://localhost:5173`.
-- Log in with default credentials: `admin` / `admin123456`.
-- Go to **Licenses** -> Click **Generate License** -> Copy the one-time revealed license key.
-
----
-
-### 4.4 Step 3: Run & Test the Chrome Extension
-
-```bash
-cd IVAC-Automation
-
-# 1. Install dependencies
-npm install
-
-# 2. Build the extension bundle
-npm run build
-
-# 3. Run all automated tests (138 tests)
-npm test
-```
-
-#### Load into Google Chrome:
-1. Open Google Chrome and visit `chrome://extensions/`.
-2. Turn on **Developer mode** (top right switch).
-3. Click **Load unpacked** and select the `IVAC-Automation/dist` directory.
-4. Open the IVAC portal (`https://appointment.ivacbd.com/`) or test page.
-5. In the IVAC floating control panel, click **License** to activate your license key.
-
----
-
-## 5. Automated Test Results
-
-All test suites across the entire repository execute cleanly with **100% pass rate**:
-
+### Connection Location
+The connection string is configured in:
 ```text
-✓ ivac-license-backend : 4 test files, 21 tests passed (100%)
-✓ IVAC-Automation      : 13 test files, 138 tests passed (100%)
-✓ ivac-license-admin   : 2020 modules transformed, 0 build errors
+ivac-license-backend/.env
+```
+Under:
+```ini
+DATABASE_URL="postgresql://neondb_owner:npg_...ep-cool-cloud-b4dl7o8g-pooler.c-6.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+```
+
+> **Security Note:** `.env` and `.env.local` files are strictly excluded via `.gitignore` to prevent secret leakage. A safe `.env.example` is maintained for documentation.
+
+### Database Migration & Seeding Commands
+```bash
+# Push schema changes to PostgreSQL
+npm run prisma:push --prefix ivac-license-backend
+
+# Seed initial admin and payment plans
+npm run seed --prefix ivac-license-backend
 ```
 
 ---
 
-## 6. Comprehensive Documentation Links
+## 5. Scripts Reference
 
-For detailed architectural schematics, security audit guidelines, and production setup:
+| Command | Action |
+| :--- | :--- |
+| `npm run dev` | Runs backend (port 5000) and admin portal (port 5173) concurrently with colored terminal logs |
+| `npm run build` | Compiles backend TypeScript and builds production admin assets to `dist/` |
+| `npm test` | Runs the full Vitest suite in the backend (21 tests, 100% pass) |
+| `npm run install:all` | Installs root, backend, and frontend dependencies in sequence |
+
+---
+
+## 6. Comprehensive Documentation Index
 
 - 📐 [**System Architecture & Design**](docs/ARCHITECTURE.md)
 - 🔌 [**REST API Specification**](docs/API.md)
 - 🛡️ [**Security & Privacy Compliance**](docs/SECURITY.md)
-- 🚀 [**Production Deployment Guide (PM2, Nginx, Docker)**](docs/DEPLOYMENT.md)
+- 🚀 [**Production Deployment Guide**](docs/DEPLOYMENT.md)
 - 🧪 [**Testing & Verification Guide**](docs/TESTING.md)
 
 ---
