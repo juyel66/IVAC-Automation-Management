@@ -46,17 +46,7 @@ export declare class ActivationService {
     /**
      * Releases an installation slot from the extension
      */
-    static releaseInstallation(input: ReleaseInstallationInput, ipAddress?: string): Promise<{
-        message: string;
-        success?: undefined;
-        activeInstallationsCount?: undefined;
-        availableSlots?: undefined;
-    } | {
-        success: boolean;
-        message: string;
-        activeInstallationsCount: number;
-        availableSlots: number;
-    }>;
+    static releaseInstallation(input: ReleaseInstallationInput, ipAddress?: string): Promise<any>;
     /**
      * Admin revokes a specific installation
      */
