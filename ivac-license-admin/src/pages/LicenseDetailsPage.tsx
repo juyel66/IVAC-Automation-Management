@@ -13,6 +13,8 @@ import {
   Clock,
   ShieldAlert,
   Save,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { licenseService } from '../services/licenseService.js';
 import { StatusBadge } from '../components/StatusBadge.js';
@@ -37,6 +39,15 @@ export const LicenseDetailsPage: React.FC = () => {
     keyMasked: string;
   } | null>(null);
   const [copiedKey, setCopiedKey] = useState(false);
+  const [showFullKey, setShowFullKey] = useState(true);
+
+  const handleCopyKey = () => {
+    const keyToCopy = license?.plainKey || license?.keyMasked || '';
+    if (!keyToCopy) return;
+    navigator.clipboard.writeText(keyToCopy);
+    setCopiedKey(true);
+    setTimeout(() => setCopiedKey(false), 2500);
+  };
 
   // Revoke Installation Modal
   const [revokingInstId, setRevokingInstId] = useState<string | null>(null);
@@ -144,15 +155,62 @@ export const LicenseDetailsPage: React.FC = () => {
 
       {/* Main License Overview Card */}
       <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-6 shadow-xl relative overflow-hidden">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-800">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-6 border-b border-slate-800">
           <div>
-            <div className="flex items-center gap-3">
-              <span className="font-mono text-xl font-bold text-emerald-400">
-                {license.keyMasked}
-              </span>
+            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-1.5">
+              License Key
+            </span>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2.5 bg-slate-950 px-4 py-2.5 rounded-2xl border border-slate-800 shadow-inner">
+                <KeyRound className="h-4 w-4 text-emerald-400 shrink-0" />
+                <span className="font-mono text-xl sm:text-2xl font-black tracking-wider text-emerald-400 select-all">
+                  {license.plainKey ? (showFullKey ? license.plainKey : license.keyMasked) : license.keyMasked}
+                </span>
+
+                {license.plainKey && (
+                  <button
+                    onClick={() => setShowFullKey(!showFullKey)}
+                    title={showFullKey ? 'Mask Key' : 'Reveal Full Key'}
+                    className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-200 transition-colors ml-1"
+                  >
+                    {showFullKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                )}
+
+                <button
+                  onClick={handleCopyKey}
+                  title="Copy Full License Key"
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-md ml-1 ${
+                    copiedKey
+                      ? 'bg-emerald-500 text-slate-950 font-black'
+                      : 'bg-emerald-500/10 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/40 active:scale-95'
+                  }`}
+                >
+                  {copiedKey ? (
+                    <>
+                      <Check className="h-4 w-4 stroke-[3]" />
+                      <span>Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-4 w-4" />
+                      <span>Copy Key</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
               <StatusBadge status={license.status} />
             </div>
-            <p className="text-xs text-slate-500 font-mono mt-1">UUID: {license.id}</p>
+
+            {!license.plainKey && (
+              <div className="mt-2.5 flex items-center gap-2 text-xs text-amber-400/90 bg-amber-500/10 border border-amber-500/20 px-3.5 py-1.5 rounded-xl w-fit">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                <span>One-way masked key. Click <strong>Reissue Key</strong> above to generate a full readable key.</span>
+              </div>
+            )}
+
+            <p className="text-[11px] text-slate-500 font-mono mt-2.5">License UUID: {license.id}</p>
           </div>
 
           {/* Quick Metrics */}
