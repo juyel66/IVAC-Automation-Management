@@ -12,6 +12,7 @@ export declare class LicenseService {
             status: import("@prisma/client").$Enums.LicenseStatus;
             keyHash: string;
             keyMasked: string;
+            plainKey: string | null;
             validityDays: number;
             activatedAt: Date | null;
             expiresAt: Date | null;
@@ -32,6 +33,7 @@ export declare class LicenseService {
         items: {
             id: string;
             keyMasked: string;
+            plainKey: string | null;
             status: import("@prisma/client").$Enums.LicenseStatus;
             validityDays: number;
             activatedAt: Date | null;
@@ -93,6 +95,7 @@ export declare class LicenseService {
         createdAt: Date;
         updatedAt: Date;
         keyMasked: string;
+        plainKey: string | null;
         validityDays: number;
         activatedAt: Date | null;
         expiresAt: Date | null;
@@ -115,6 +118,7 @@ export declare class LicenseService {
         status: import("@prisma/client").$Enums.LicenseStatus;
         keyHash: string;
         keyMasked: string;
+        plainKey: string | null;
         validityDays: number;
         activatedAt: Date | null;
         expiresAt: Date | null;
@@ -137,6 +141,7 @@ export declare class LicenseService {
         status: import("@prisma/client").$Enums.LicenseStatus;
         keyHash: string;
         keyMasked: string;
+        plainKey: string | null;
         validityDays: number;
         activatedAt: Date | null;
         expiresAt: Date | null;
@@ -159,6 +164,7 @@ export declare class LicenseService {
         status: import("@prisma/client").$Enums.LicenseStatus;
         keyHash: string;
         keyMasked: string;
+        plainKey: string | null;
         validityDays: number;
         activatedAt: Date | null;
         expiresAt: Date | null;
