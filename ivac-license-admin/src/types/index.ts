@@ -25,6 +25,7 @@ export interface LicenseInstallation {
 export interface License {
   id: string;
   keyMasked: string;
+  plainKey?: string | null;
   status: LicenseStatus;
   validityDays: number;
   activatedAt?: string | null;
