@@ -1,0 +1,168 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum LicenseStatus {
+  PENDING
+  ACTIVE
+  EXPIRED
+  SUSPENDED
+  REVOKED
+}
+
+enum InstallationStatus {
+  ACTIVE
+  REVOKED
+}
+
+enum PaymentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Admin {
+  id           String         @id @default(uuid())
+  email        String         @unique
+  username     String         @unique
+  passwordHash String
+  role         String         @default("SUPER_ADMIN")
+  isActive     Boolean        @default(true)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  sessions     AdminSession[]
+  auditLogs    AuditLog[]
+
+  @@map("admins")
+}
+
+model AdminSession {
+  id        String   @id @default(uuid())
+  adminId   String
+  tokenHash String   @unique
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  admin     Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@index([tokenHash])
+  @@map("admin_sessions")
+}
+
+model License {
+  id                   String                @id @default(uuid())
+  keyHash              String                @unique
+  keyMasked            String
+  status               LicenseStatus         @default(PENDING)
+  validityDays         Int                   @default(30)
+  activatedAt          DateTime?
+  expiresAt            DateTime?
+  maxInstallations     Int                   @default(1)
+  currentInstallations Int                   @default(0)
+  customerName         String?
+  customerContact      String?
+  adminNotes           String?
+  lastValidatedAt      DateTime?
+  createdByAdminId     String?
+  updatedByAdminId     String?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  installations        LicenseInstallation[]
+  paymentRequests      PaymentRequest[]
+
+  @@index([status])
+  @@index([keyHash])
+  @@map("licenses")
+}
+
+model LicenseInstallation {
+  id                String             @id @default(uuid())
+  licenseId         String
+  installationId    String             @unique
+  installationLabel String?
+  firstActivatedAt  DateTime           @default(now())
+  lastSeenAt        DateTime           @default(now())
+  status            InstallationStatus @default(ACTIVE)
+  revokedAt         DateTime?
+  revokedBy         String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  license           License            @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+
+  @@index([licenseId, status])
+  @@index([installationId])
+  @@map("license_installations")
+}
+
+model PaymentPlan {
+  id               String   @id @default(uuid())
+  code             String   @unique
+  name             String
+  validityDays     Int
+  maxInstallations Int      @default(1)
+  price            Decimal  @db.Decimal(10, 2)
+  currency         String   @default("BDT")
+  isActive         Boolean  @default(true)
+  sortOrder        Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("payment_plans")
+}
+
+model PaymentSettings {
+  id                String   @id @default("default")
+  bkashNumber       String   @default("01700000000")
+  nagadNumber       String   @default("01800000000")
+  bankInstructions  String?
+  whatsappNumber    String   @default("+8801700000000")
+  instructionText   String?
+  updatedAt         DateTime @updatedAt
+
+  @@map("payment_settings")
+}
+
+model PaymentRequest {
+  id                 String        @id @default(uuid())
+  transactionId      String        @unique
+  paymentMethod      String
+  planCode           String
+  amount             Decimal       @db.Decimal(10, 2)
+  currency           String        @default("BDT")
+  payerContact       String
+  licenseId          String?
+  status             PaymentStatus @default(PENDING)
+  adminNote          String?
+  reviewedByAdminId  String?
+  reviewedAt         DateTime?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  license            License?      @relation(fields: [licenseId], references: [id])
+
+  @@index([status])
+  @@index([transactionId])
+  @@map("payment_requests")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  adminId    String?
+  action     String
+  entityType String
+  entityId   String?
+  details    String?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+  admin      Admin?   @relation(fields: [adminId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
