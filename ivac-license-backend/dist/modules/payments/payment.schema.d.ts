@@ -48,12 +48,15 @@ export declare const SubmitPaymentRequestSchema: z.ZodEffects<z.ZodObject<{
 export declare const ApprovePaymentSchema: z.ZodObject<{
     adminNote: z.ZodOptional<z.ZodString>;
     targetLicenseId: z.ZodOptional<z.ZodString>;
+    actionType: z.ZodOptional<z.ZodEnum<["GENERATE_NEW", "RENEW_EXISTING"]>>;
 }, "strip", z.ZodTypeAny, {
     adminNote?: string | undefined;
     targetLicenseId?: string | undefined;
+    actionType?: "GENERATE_NEW" | "RENEW_EXISTING" | undefined;
 }, {
     adminNote?: string | undefined;
     targetLicenseId?: string | undefined;
+    actionType?: "GENERATE_NEW" | "RENEW_EXISTING" | undefined;
 }>;
 export declare const RejectPaymentSchema: z.ZodObject<{
     adminNote: z.ZodString;
