@@ -3,7 +3,7 @@ import { prisma } from '../config/database.js';
 export interface CreateAuditLogParams {
   adminId?: string | null;
   action: string;
-  entityType: 'LICENSE' | 'INSTALLATION' | 'PAYMENT' | 'ADMIN' | 'SETTINGS' | 'SYSTEM';
+  entityType: 'LICENSE' | 'INSTALLATION' | 'PAYMENT' | 'ADMIN' | 'SETTINGS' | 'SYSTEM' | 'PLAN';
   entityId?: string | null;
   details?: Record<string, any> | string;
   ipAddress?: string;

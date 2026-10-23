@@ -196,8 +196,74 @@ export const mockPrisma = {
     }),
   },
   paymentPlan: {
-    findMany: vi.fn(async () => inMemoryDb.paymentPlans),
-    findUnique: vi.fn(async ({ where }: any) => inMemoryDb.paymentPlans.find((p) => p.code === where.code) || null),
+    findMany: vi.fn(async ({ where, orderBy, include }: any = {}) => {
+      let list = [...inMemoryDb.paymentPlans];
+      if (where?.isActive !== undefined) {
+        list = list.filter((p) => p.isActive === where.isActive);
+      }
+      if (where?.OR && Array.isArray(where.OR)) {
+        list = list.filter((p) => {
+          return where.OR.some((cond: any) => {
+            if (cond.name?.contains) {
+              return p.name.toLowerCase().includes(cond.name.contains.toLowerCase());
+            }
+            if (cond.code?.contains) {
+              return p.code.toLowerCase().includes(cond.code.contains.toLowerCase());
+            }
+            return false;
+          });
+        });
+      }
+      if (orderBy) {
+        list.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+      }
+      return list.map((p) => {
+        const item: any = { ...p };
+        if (include?._count?.select?.paymentRequests) {
+          item._count = {
+            paymentRequests: inMemoryDb.paymentRequests.filter((pr) => pr.planId === p.id || pr.planCode === p.code).length,
+          };
+        }
+        return item;
+      });
+    }),
+    findUnique: vi.fn(async ({ where, include }: any) => {
+      let plan = inMemoryDb.paymentPlans.find((p) => (where.id ? p.id === where.id : p.code === where.code));
+      if (!plan) return null;
+      const res: any = { ...plan };
+      if (include?._count?.select?.paymentRequests) {
+        res._count = {
+          paymentRequests: inMemoryDb.paymentRequests.filter((pr) => pr.planId === plan.id || pr.planCode === plan.code).length,
+        };
+      }
+      return res;
+    }),
+    create: vi.fn(async ({ data }: any) => {
+      const record = {
+        id: data.id || crypto.randomUUID(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        currency: 'BDT',
+        maxInstallations: 1,
+        sortOrder: 0,
+        isActive: true,
+        ...data,
+      };
+      inMemoryDb.paymentPlans.push(record);
+      return record;
+    }),
+    update: vi.fn(async ({ where, data }: any) => {
+      const index = inMemoryDb.paymentPlans.findIndex((p) => (where.id ? p.id === where.id : p.code === where.code));
+      if (index === -1) throw new Error('PaymentPlan not found');
+      inMemoryDb.paymentPlans[index] = { ...inMemoryDb.paymentPlans[index], ...data, updatedAt: new Date() };
+      return inMemoryDb.paymentPlans[index];
+    }),
+    delete: vi.fn(async ({ where }: any) => {
+      const index = inMemoryDb.paymentPlans.findIndex((p) => (where.id ? p.id === where.id : p.code === where.code));
+      if (index === -1) throw new Error('PaymentPlan not found');
+      const deleted = inMemoryDb.paymentPlans.splice(index, 1)[0];
+      return deleted;
+    }),
     createMany: vi.fn(async ({ data }: any) => {
       inMemoryDb.paymentPlans.push(...data);
       return { count: data.length };
@@ -224,12 +290,24 @@ export const mockPrisma = {
       if (include?.license) {
         res.license = inMemoryDb.licenses.find((l) => l.id === req.licenseId) || null;
       }
+      if (include?.plan) {
+        res.plan = inMemoryDb.paymentPlans.find((p) => (req.planId ? p.id === req.planId : p.code === req.planCode)) || null;
+      }
       return res;
     }),
-    findMany: vi.fn(async ({ where, skip = 0, take = 50 }: any) => {
+    findMany: vi.fn(async ({ where, skip = 0, take = 50, include }: any) => {
       let list = [...inMemoryDb.paymentRequests];
       if (where?.status) list = list.filter((p) => p.status === where.status);
-      return list.slice(skip, skip + take);
+      return list.slice(skip, skip + take).map((req) => {
+        const res = { ...req };
+        if (include?.license) {
+          res.license = inMemoryDb.licenses.find((l) => l.id === req.licenseId) || null;
+        }
+        if (include?.plan) {
+          res.plan = inMemoryDb.paymentPlans.find((p) => (req.planId ? p.id === req.planId : p.code === req.planCode)) || null;
+        }
+        return res;
+      });
     }),
     count: vi.fn(async ({ where }: any = {}) => {
       let list = [...inMemoryDb.paymentRequests];

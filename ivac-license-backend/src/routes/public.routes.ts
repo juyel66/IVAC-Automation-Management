@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { ActivationController } from '../modules/activations/activation.controller.js';
 import { PaymentController } from '../modules/payments/payment.controller.js';
+import { PlanController } from '../modules/plans/plan.controller.js';
 import { validateBody } from '../middleware/validation.js';
 import {
   ActivateLicenseSchema,
@@ -12,6 +13,9 @@ import { SubmitPaymentRequestSchema } from '../modules/payments/payment.schema.j
 import { standardRateLimiter, publicSubmitRateLimiter } from '../middleware/rateLimiter.js';
 
 const router = Router();
+
+// Public plans endpoint for Chrome extension
+router.get('/public/plans', standardRateLimiter, PlanController.listPublic);
 
 // Public payment instructions
 router.get('/public/payment-instructions', standardRateLimiter, PaymentController.getInstructions);

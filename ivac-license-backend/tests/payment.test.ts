@@ -32,6 +32,61 @@ describe('3. Manual Payment Workflow Tests', () => {
     });
   });
 
+  it('provides public dynamic plans via GET /api/v1/public/plans', async () => {
+    const res = await request(app).get('/api/v1/public/plans');
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.data)).toBe(true);
+    expect(res.body.data.length).toBeGreaterThan(0);
+    const plan = res.body.data[0];
+    expect(plan.id).toBeDefined();
+    expect(plan.code).toBeDefined();
+    expect(plan.name).toBeDefined();
+    expect(plan.price).toBeDefined();
+    expect(plan.validityDays).toBeDefined();
+    expect(plan.maxInstallations).toBeDefined();
+  });
+
+  it('submits a payment request using stable planId', async () => {
+    const res = await request(app)
+      .post('/api/v1/payments/requests')
+      .send({
+        transactionId: 'PLANIDTRX123',
+        paymentMethod: 'BKASH',
+        planId: '2',
+        payerContact: '01711223344',
+        payerName: 'John Doe',
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.data.status).toBe('PENDING');
+  });
+
+  it('rejects payment submission for an inactive plan', async () => {
+    inMemoryDb.paymentPlans.push({
+      id: 'inactive-plan',
+      code: 'INACTIVE_PLAN',
+      name: 'Inactive Pass',
+      validityDays: 30,
+      price: 500,
+      maxInstallations: 1,
+      currency: 'BDT',
+      isActive: false,
+      sortOrder: 99,
+    });
+
+    const res = await request(app)
+      .post('/api/v1/payments/requests')
+      .send({
+        transactionId: 'INACTIVETRX123',
+        paymentMethod: 'BKASH',
+        planId: 'inactive-plan',
+        payerContact: '01711223344',
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_PLAN');
+  });
+
   it('provides public payment instructions and available plans without authentication', async () => {
     const res = await request(app).get('/api/v1/public/payment-instructions');
     expect(res.status).toBe(200);
@@ -160,5 +215,68 @@ describe('3. Manual Payment Workflow Tests', () => {
     expect(rejectRes.status).toBe(200);
     expect(rejectRes.body.data.status).toBe('REJECTED');
     expect(rejectRes.body.data.adminNote).toContain('not found in bKash statement');
+  });
+
+  it('admin approves payment with actionType GENERATE_NEW generates a brand new key with exact validity and seat quota', async () => {
+    // Customer had an old license
+    const oldLic = await LicenseService.createLicense({ validityDays: 7, maxInstallations: 1 }, adminId);
+
+    // Creates payment request with 15 days validity and 2 seats
+    const subRes = await request(app)
+      .post('/api/v1/payments/requests')
+      .send({
+        transactionId: 'NEWKEY123456',
+        paymentMethod: 'BKASH',
+        planCode: 'PLAN_30D',
+        payerContact: '01799887766',
+        licenseId: oldLic.license.id,
+      });
+
+    const paymentId = subRes.body.data.requestId;
+
+    // Approve with actionType = GENERATE_NEW
+    const approveRes = await request(app)
+      .post(`/api/v1/admin/payments/${paymentId}/approve`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        actionType: 'GENERATE_NEW',
+        adminNote: 'Generated new key for customer',
+      });
+
+    expect(approveRes.status).toBe(200);
+    expect(approveRes.body.data.actionResult).toBe('CREATED');
+    expect(approveRes.body.data.generatedPlainKey).toMatch(/^IVAC-/);
+    expect(approveRes.body.data.linkedLicenseId).not.toBe(oldLic.license.id);
+    expect(approveRes.body.data.license.validityDays).toBe(30);
+    expect(approveRes.body.data.license.maxInstallations).toBe(1);
+    expect(approveRes.body.data.license.plainKey).toMatch(/^IVAC-/);
+  });
+
+  it('admin approves payment with actionType RENEW_EXISTING extends linked license and returns plain key', async () => {
+    const oldLic = await LicenseService.createLicense({ validityDays: 10, maxInstallations: 1 }, adminId);
+
+    const subRes = await request(app)
+      .post('/api/v1/payments/requests')
+      .send({
+        transactionId: 'RENEWKEY8888',
+        paymentMethod: 'NAGAD',
+        planCode: 'PLAN_30D',
+        payerContact: '01511223344',
+        licenseId: oldLic.license.id,
+      });
+
+    const paymentId = subRes.body.data.requestId;
+
+    const approveRes = await request(app)
+      .post(`/api/v1/admin/payments/${paymentId}/approve`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        actionType: 'RENEW_EXISTING',
+      });
+
+    expect(approveRes.status).toBe(200);
+    expect(approveRes.body.data.actionResult).toBe('RENEWED');
+    expect(approveRes.body.data.linkedLicenseId).toBe(oldLic.license.id);
+    expect(approveRes.body.data.generatedPlainKey).toBe(oldLic.plainLicenseKey);
   });
 });
