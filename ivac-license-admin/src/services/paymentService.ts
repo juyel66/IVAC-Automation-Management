@@ -21,10 +21,18 @@ export const paymentService = {
     };
   },
 
-  async approvePayment(id: string, adminNote?: string, targetLicenseId?: string) {
+  async approvePayment(
+    id: string,
+    params?: {
+      adminNote?: string;
+      targetLicenseId?: string;
+      actionType?: 'GENERATE_NEW' | 'RENEW_EXISTING';
+    } | string
+  ) {
+    const body = typeof params === 'string' ? { adminNote: params } : (params || {});
     const res = await apiFetch(`/admin/payments/${id}/approve`, {
       method: 'POST',
-      body: JSON.stringify({ adminNote, targetLicenseId }),
+      body: JSON.stringify(body),
     });
     return res.data;
   },
