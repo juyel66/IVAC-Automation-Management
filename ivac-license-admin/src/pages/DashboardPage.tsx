@@ -131,52 +131,68 @@ export const DashboardPage: React.FC = () => {
       </div>
 
       {/* Quick Action Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         <div
           onClick={() => navigate('/licenses')}
-          className="group cursor-pointer rounded-2xl border border-slate-800 bg-slate-900/60 p-6 hover:border-emerald-500/40 hover:bg-slate-900 transition-all"
+          className="group cursor-pointer rounded-2xl border border-slate-800 bg-slate-900/60 p-5 hover:border-emerald-500/40 hover:bg-slate-900 transition-all"
         >
           <div className="flex items-center justify-between mb-3">
             <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-400 group-hover:scale-110 transition-transform">
-              <KeyRound className="h-6 w-6" />
+              <KeyRound className="h-5 w-5" />
             </div>
             <ArrowRight className="h-4 w-4 text-slate-500 group-hover:text-emerald-400 group-hover:translate-x-1 transition-all" />
           </div>
-          <h3 className="text-base font-bold text-white">License Management</h3>
+          <h3 className="text-sm font-bold text-white">License Keys</h3>
           <p className="text-xs text-slate-400 mt-1">
-            Search, generate keys, modify installation limits, extend validity, or revoke licenses.
+            Generate keys, modify limits, extend validity, or revoke licenses.
+          </p>
+        </div>
+
+        <div
+          onClick={() => navigate('/plans')}
+          className="group cursor-pointer rounded-2xl border border-slate-800 bg-slate-900/60 p-5 hover:border-purple-500/40 hover:bg-slate-900 transition-all"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <div className="p-3 rounded-xl bg-purple-500/10 text-purple-400 group-hover:scale-110 transition-transform">
+              <CreditCard className="h-5 w-5" />
+            </div>
+            <ArrowRight className="h-4 w-4 text-slate-500 group-hover:text-purple-400 group-hover:translate-x-1 transition-all" />
+          </div>
+          <h3 className="text-sm font-bold text-white">Plans & Pricing</h3>
+          <p className="text-xs text-slate-400 mt-1">
+            Configure dynamic subscription durations, BDT pricing tiers, and browser limits.
           </p>
         </div>
 
         <div
           onClick={() => navigate('/payments')}
-          className="group cursor-pointer rounded-2xl border border-slate-800 bg-slate-900/60 p-6 hover:border-amber-500/40 hover:bg-slate-900 transition-all"
+          className="group cursor-pointer rounded-2xl border border-slate-800 bg-slate-900/60 p-5 hover:border-amber-500/40 hover:bg-slate-900 transition-all"
         >
           <div className="flex items-center justify-between mb-3">
             <div className="p-3 rounded-xl bg-amber-500/10 text-amber-400 group-hover:scale-110 transition-transform">
-              <CreditCard className="h-6 w-6" />
+              <CreditCard className="h-5 w-5" />
             </div>
             <ArrowRight className="h-4 w-4 text-slate-500 group-hover:text-amber-400 group-hover:translate-x-1 transition-all" />
           </div>
-          <h3 className="text-base font-bold text-white">Payment Review Queue</h3>
+          <h3 className="text-sm font-bold text-white">Payment Review</h3>
           <p className="text-xs text-slate-400 mt-1">
-            Inspect customer-submitted bKash/Nagad transaction IDs and approve or reject submissions.
+            Inspect customer-submitted bKash/Nagad transactions and approve or reject.
           </p>
         </div>
 
         <div
           onClick={() => navigate('/audit-logs')}
-          className="group cursor-pointer rounded-2xl border border-slate-800 bg-slate-900/60 p-6 hover:border-blue-500/40 hover:bg-slate-900 transition-all"
+          className="group cursor-pointer rounded-2xl border border-slate-800 bg-slate-900/60 p-5 hover:border-blue-500/40 hover:bg-slate-900 transition-all"
         >
           <div className="flex items-center justify-between mb-3">
             <div className="p-3 rounded-xl bg-blue-500/10 text-blue-400 group-hover:scale-110 transition-transform">
-              <ShieldCheck className="h-6 w-6" />
+              <ShieldCheck className="h-5 w-5" />
             </div>
             <ArrowRight className="h-4 w-4 text-slate-500 group-hover:text-blue-400 group-hover:translate-x-1 transition-all" />
           </div>
-          <h3 className="text-base font-bold text-white">Security & Audit Logs</h3>
+          <h3 className="text-sm font-bold text-white">Security Audit</h3>
           <p className="text-xs text-slate-400 mt-1">
-            Review detailed chronological records of all administrative actions, key issuances, and approvals.
+            Review detailed chronological records of all administrative actions and changes.
           </p>
         </div>
       </div>
