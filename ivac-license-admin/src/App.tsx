@@ -6,6 +6,7 @@ import { LoginPage } from './pages/LoginPage.js';
 import { DashboardPage } from './pages/DashboardPage.js';
 import { LicensesPage } from './pages/LicensesPage.js';
 import { LicenseDetailsPage } from './pages/LicenseDetailsPage.js';
+import { PlansPage } from './pages/PlansPage.js';
 import { PaymentsPage } from './pages/PaymentsPage.js';
 import { SettingsPage } from './pages/SettingsPage.js';
 import { AuditLogsPage } from './pages/AuditLogsPage.js';
@@ -29,6 +30,7 @@ export const App: React.FC = () => {
             <Route index element={<DashboardPage />} />
             <Route path="licenses" element={<LicensesPage />} />
             <Route path="licenses/:id" element={<LicenseDetailsPage />} />
+            <Route path="plans" element={<PlansPage />} />
             <Route path="payments" element={<PaymentsPage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="audit-logs" element={<AuditLogsPage />} />
