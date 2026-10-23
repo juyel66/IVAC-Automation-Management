@@ -103,17 +103,19 @@ model LicenseInstallation {
 }
 
 model PaymentPlan {
-  id               String   @id @default(uuid())
-  code             String   @unique
+  id               String           @id @default(uuid())
+  code             String           @unique
   name             String
+  description      String?
   validityDays     Int
-  maxInstallations Int      @default(1)
-  price            Decimal  @db.Decimal(10, 2)
-  currency         String   @default("BDT")
-  isActive         Boolean  @default(true)
-  sortOrder        Int      @default(0)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  maxInstallations Int              @default(1)
+  price            Decimal          @db.Decimal(10, 2)
+  currency         String           @default("BDT")
+  isActive         Boolean          @default(true)
+  sortOrder        Int              @default(0)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  paymentRequests  PaymentRequest[]
 
   @@map("payment_plans")
 }
@@ -134,10 +136,15 @@ model PaymentRequest {
   id                 String        @id @default(uuid())
   transactionId      String        @unique
   paymentMethod      String
+  planId             String?
   planCode           String
+  planName           String?
+  validityDays       Int?
+  maxInstallations   Int?
   amount             Decimal       @db.Decimal(10, 2)
   currency           String        @default("BDT")
   payerContact       String
+  customerName       String?
   licenseId          String?
   status             PaymentStatus @default(PENDING)
   adminNote          String?
@@ -146,9 +153,11 @@ model PaymentRequest {
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
   license            License?      @relation(fields: [licenseId], references: [id])
+  plan               PaymentPlan?  @relation(fields: [planId], references: [id], onDelete: SetNull)
 
   @@index([status])
   @@index([transactionId])
+  @@index([planId])
   @@map("payment_requests")
 }
 
