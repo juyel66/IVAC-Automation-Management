@@ -127,6 +127,8 @@ export interface PaymentRequest {
     code: string;
     name: string;
     price: number;
+    validityDays?: number;
+    maxInstallations?: number;
   } | null;
 }
 
