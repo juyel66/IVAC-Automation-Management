@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   KeyRound,
   CreditCard,
+  Layers,
   ShieldCheck,
   Settings,
   ShieldAlert,
@@ -17,6 +18,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ pendingPaymentsCount = 0 }) =>
   const navItems = [
     { to: '/', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/licenses', label: 'License Keys', icon: KeyRound },
+    { to: '/plans', label: 'Plans & Pricing', icon: Layers },
     {
       to: '/payments',
       label: 'Payments',
