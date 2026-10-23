@@ -28,12 +28,28 @@ export const PaymentsPage: React.FC = () => {
 
   // Approve Modal State
   const [approvingPayment, setApprovingPayment] = useState<PaymentRequest | null>(null);
+  const [approveActionType, setApproveActionType] = useState<'GENERATE_NEW' | 'RENEW_EXISTING'>('GENERATE_NEW');
   const [approveNote, setApproveNote] = useState('');
   const [approveResult, setApproveResult] = useState<{
     message: string;
     generatedPlainKey?: string;
+    linkedLicenseId?: string;
+    actionResult?: 'CREATED' | 'RENEWED';
+    license?: {
+      id?: string;
+      keyMasked?: string;
+      plainKey?: string;
+      validityDays?: number;
+      maxInstallations?: number;
+    };
+    plan?: {
+      name?: string;
+      validityDays?: number;
+      maxInstallations?: number;
+    };
   } | null>(null);
   const [copiedKey, setCopiedKey] = useState(false);
+  const [copiedTableKeyId, setCopiedTableKeyId] = useState<string | null>(null);
 
   // Reject Modal State
   const [rejectingPayment, setRejectingPayment] = useState<PaymentRequest | null>(null);
@@ -54,10 +70,14 @@ export const PaymentsPage: React.FC = () => {
   // Approve Mutation
   const approveMutation = useMutation({
     mutationFn: () =>
-      paymentService.approvePayment(approvingPayment!.id, approveNote),
+      paymentService.approvePayment(approvingPayment!.id, {
+        adminNote: approveNote,
+        actionType: approveActionType,
+      }),
     onSuccess: (res: any) => {
       queryClient.invalidateQueries({ queryKey: ['payments'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['licenses'] });
       setApprovingPayment(null);
       setApproveNote('');
       setApproveResult(res);
@@ -183,10 +203,24 @@ export const PaymentsPage: React.FC = () => {
                     </td>
 
                     <td className="px-5 py-3.5">
-                      <div className="text-slate-200 font-semibold">{p.planCode}</div>
-                      <div className="text-[11px] text-emerald-400 font-mono font-bold">
-                        {p.amount} {p.currency}
+                      <div className="text-slate-200 font-semibold">
+                        {p.planName || p.plan?.name || p.planCode}
                       </div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[11px] text-emerald-400 font-mono font-bold">
+                          ৳ {p.amount} {p.currency}
+                        </span>
+                        {p.validityDays ? (
+                          <span className="text-[10px] text-slate-400">
+                            ({p.validityDays}d{p.maxInstallations ? `, ${p.maxInstallations} browser${p.maxInstallations > 1 ? 's' : ''}` : ''})
+                          </span>
+                        ) : null}
+                      </div>
+                      {p.customerName && (
+                        <div className="text-[10px] text-slate-400">
+                          Customer: {p.customerName}
+                        </div>
+                      )}
                     </td>
 
                     <td className="px-5 py-3.5 font-mono text-slate-300">
