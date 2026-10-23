@@ -3,15 +3,21 @@ import { z } from 'zod';
 export const SubmitPaymentRequestSchema = z.object({
   transactionId: z.string().min(5, 'Valid transaction ID is required').max(100),
   paymentMethod: z.enum(['BKASH', 'NAGAD', 'ROCKET', 'UPAY', 'BANK']),
-  planCode: z.string().min(2).max(50),
+  planId: z.string().min(1).max(100).optional(),
+  planCode: z.string().min(2).max(50).optional(),
   payerContact: z.string().min(6, 'Valid contact number is required').max(50),
-  licenseId: z.string().uuid().optional().nullable(),
+  payerName: z.string().max(100).optional().nullable(),
   customerName: z.string().max(100).optional().nullable(),
+  licenseId: z.string().uuid().optional().nullable(),
+}).refine((data) => data.planId || data.planCode, {
+  message: 'Either planId or planCode is required',
+  path: ['planId'],
 });
 
 export const ApprovePaymentSchema = z.object({
   adminNote: z.string().max(500).optional(),
   targetLicenseId: z.string().uuid().optional(), // In case admin manually overrides/links a specific license
+  actionType: z.enum(['GENERATE_NEW', 'RENEW_EXISTING']).optional(),
 });
 
 export const RejectPaymentSchema = z.object({
