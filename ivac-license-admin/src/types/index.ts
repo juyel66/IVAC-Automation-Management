@@ -44,12 +44,45 @@ export interface License {
 }
 
 export interface PaymentPlan {
+  id: string;
   code: string;
   name: string;
+  description?: string | null;
   validityDays: number;
   maxInstallations: number;
   price: number;
   currency: string;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt?: string;
+  updatedAt?: string;
+  _count?: {
+    paymentRequests: number;
+  };
+}
+
+export interface CreatePlanInput {
+  code: string;
+  name: string;
+  description?: string;
+  price: number;
+  currency?: string;
+  validityDays: number;
+  maxInstallations: number;
+  isActive?: boolean;
+  sortOrder?: number;
+}
+
+export interface UpdatePlanInput {
+  code?: string;
+  name?: string;
+  description?: string;
+  price?: number;
+  currency?: string;
+  validityDays?: number;
+  maxInstallations?: number;
+  isActive?: boolean;
+  sortOrder?: number;
 }
 
 export interface PaymentSettings {
@@ -64,10 +97,15 @@ export interface PaymentRequest {
   id: string;
   transactionId: string;
   paymentMethod: string;
+  planId?: string | null;
   planCode: string;
+  planName?: string | null;
+  validityDays?: number | null;
+  maxInstallations?: number | null;
   amount: number;
   currency: string;
   payerContact: string;
+  customerName?: string | null;
   licenseId?: string | null;
   status: PaymentStatus;
   adminNote?: string | null;
@@ -78,8 +116,18 @@ export interface PaymentRequest {
   license?: {
     id: string;
     keyMasked: string;
+    plainKey?: string | null;
+    status?: string;
+    validityDays?: number;
+    maxInstallations?: number;
     customerName?: string | null;
   };
+  plan?: {
+    id: string;
+    code: string;
+    name: string;
+    price: number;
+  } | null;
 }
 
 export interface DashboardStats {
