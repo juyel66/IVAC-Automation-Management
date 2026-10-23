@@ -1,25 +1,49 @@
 import { z } from 'zod';
-export declare const SubmitPaymentRequestSchema: z.ZodObject<{
+export declare const SubmitPaymentRequestSchema: z.ZodEffects<z.ZodObject<{
     transactionId: z.ZodString;
     paymentMethod: z.ZodEnum<["BKASH", "NAGAD", "ROCKET", "UPAY", "BANK"]>;
-    planCode: z.ZodString;
+    planId: z.ZodOptional<z.ZodString>;
+    planCode: z.ZodOptional<z.ZodString>;
     payerContact: z.ZodString;
-    licenseId: z.ZodNullable<z.ZodOptional<z.ZodString>>;
+    payerName: z.ZodNullable<z.ZodOptional<z.ZodString>>;
     customerName: z.ZodNullable<z.ZodOptional<z.ZodString>>;
+    licenseId: z.ZodNullable<z.ZodOptional<z.ZodString>>;
 }, "strip", z.ZodTypeAny, {
     transactionId: string;
     paymentMethod: "BKASH" | "NAGAD" | "ROCKET" | "UPAY" | "BANK";
-    planCode: string;
     payerContact: string;
     licenseId?: string | null | undefined;
     customerName?: string | null | undefined;
+    planId?: string | undefined;
+    planCode?: string | undefined;
+    payerName?: string | null | undefined;
 }, {
     transactionId: string;
     paymentMethod: "BKASH" | "NAGAD" | "ROCKET" | "UPAY" | "BANK";
-    planCode: string;
     payerContact: string;
     licenseId?: string | null | undefined;
     customerName?: string | null | undefined;
+    planId?: string | undefined;
+    planCode?: string | undefined;
+    payerName?: string | null | undefined;
+}>, {
+    transactionId: string;
+    paymentMethod: "BKASH" | "NAGAD" | "ROCKET" | "UPAY" | "BANK";
+    payerContact: string;
+    licenseId?: string | null | undefined;
+    customerName?: string | null | undefined;
+    planId?: string | undefined;
+    planCode?: string | undefined;
+    payerName?: string | null | undefined;
+}, {
+    transactionId: string;
+    paymentMethod: "BKASH" | "NAGAD" | "ROCKET" | "UPAY" | "BANK";
+    payerContact: string;
+    licenseId?: string | null | undefined;
+    customerName?: string | null | undefined;
+    planId?: string | undefined;
+    planCode?: string | undefined;
+    payerName?: string | null | undefined;
 }>;
 export declare const ApprovePaymentSchema: z.ZodObject<{
     adminNote: z.ZodOptional<z.ZodString>;
