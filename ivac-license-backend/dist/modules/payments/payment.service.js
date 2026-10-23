@@ -209,6 +209,7 @@ export class PaymentService {
                         select: {
                             id: true,
                             keyMasked: true,
+                            plainKey: true,
                             status: true,
                             customerName: true,
                         },
@@ -219,6 +220,8 @@ export class PaymentService {
                             code: true,
                             name: true,
                             price: true,
+                            validityDays: true,
+                            maxInstallations: true,
                         },
                     },
                 },
@@ -240,6 +243,7 @@ export class PaymentService {
     /**
      * Admin approves a payment request (Idempotent!)
      * Uses authoritative snapshot terms recorded at submission time.
+     * Always generates and returns the license key according to the plan criteria and browser seats!
      */
     static async approvePayment(paymentId, input, adminId, ipAddress) {
         return await prisma.$transaction(async (tx) => {
@@ -250,22 +254,36 @@ export class PaymentService {
             if (!payment) {
                 throw { status: 404, message: 'Payment request not found.', code: 'NOT_FOUND' };
             }
-            // Idempotency: If already approved, return without duplicating license action
+            // Idempotency: If already approved, return with the existing license key so admin can copy it anytime
             if (payment.status === 'APPROVED') {
+                const existingLicense = payment.licenseId
+                    ? await tx.license.findUnique({ where: { id: payment.licenseId } })
+                    : null;
+                const key = existingLicense?.plainKey || existingLicense?.keyMasked;
                 return {
                     message: 'Payment was already approved previously.',
                     paymentRequest: payment,
                     isAlreadyApproved: true,
+                    generatedPlainKey: key,
+                    linkedLicenseId: payment.licenseId,
+                    license: existingLicense,
                 };
             }
             // Authoritative purchase snapshot terms:
             // Always prioritize snapshot saved at payment submission time so editing a plan later does NOT alter existing purchase terms!
             const validityDays = payment.validityDays ?? payment.plan?.validityDays ?? 30;
             const maxInstallations = payment.maxInstallations ?? payment.plan?.maxInstallations ?? 1;
-            let targetLicenseId = input.targetLicenseId || payment.licenseId;
+            // Determine whether to generate a new key or renew an existing key:
+            // If admin explicitly requested actionType === 'GENERATE_NEW', ALWAYS generate a brand new key!
+            // If admin requested 'RENEW_EXISTING' or passed targetLicenseId, renew that license.
+            const shouldRenew = input.actionType === 'RENEW_EXISTING' || (!input.actionType && !!(input.targetLicenseId || payment.licenseId));
+            let targetLicenseId;
             let generatedPlainKey;
-            if (targetLicenseId) {
-                // Renew existing license
+            let actionResult;
+            let resultingLicense;
+            if (shouldRenew && (input.targetLicenseId || payment.licenseId)) {
+                actionResult = 'RENEWED';
+                targetLicenseId = (input.targetLicenseId || payment.licenseId);
                 const targetLic = await tx.license.findUnique({ where: { id: targetLicenseId } });
                 if (!targetLic) {
                     throw { status: 404, message: 'Linked license not found.', code: 'LICENSE_NOT_FOUND' };
@@ -273,28 +291,32 @@ export class PaymentService {
                 const now = new Date();
                 const baseTime = targetLic.expiresAt && targetLic.expiresAt > now ? targetLic.expiresAt : now;
                 const newExpiresAt = new Date(baseTime.getTime() + validityDays * 24 * 3600 * 1000);
-                await tx.license.update({
+                resultingLicense = await tx.license.update({
                     where: { id: targetLicenseId },
                     data: {
                         status: 'ACTIVE',
                         expiresAt: newExpiresAt,
                         activatedAt: targetLic.activatedAt || now,
+                        maxInstallations: Math.max(targetLic.maxInstallations, maxInstallations),
                         updatedByAdminId: adminId,
-                        adminNotes: `${targetLic.adminNotes || ''}\n[Approved Payment ${payment.transactionId} - ${payment.planName || payment.planCode} (${validityDays}d)]`.trim(),
+                        adminNotes: `${targetLic.adminNotes || ''}\n[Approved Payment ${payment.transactionId} - ${payment.planName || payment.planCode} (${validityDays}d, ${maxInstallations} seats)]`.trim(),
                     },
                 });
+                generatedPlainKey = targetLic.plainKey || targetLic.keyMasked;
             }
             else {
-                // No existing license -> generate a new license for this approved payment using snapshot terms
+                // ALWAYS generate a brand new license key strictly according to the purchased plan criteria and seats!
+                actionResult = 'CREATED';
                 const newLicense = await LicenseService.createLicense({
                     validityDays,
                     maxInstallations,
                     customerName: payment.customerName || undefined,
                     customerContact: payment.payerContact,
-                    adminNotes: `Generated from manual payment TrxID: ${payment.transactionId} [${payment.planName || payment.planCode}]`,
+                    adminNotes: `Generated from approved payment TrxID: ${payment.transactionId} [${payment.planName || payment.planCode} - ${validityDays}d, ${maxInstallations} browser seat(s)]`,
                 }, adminId, ipAddress);
                 targetLicenseId = newLicense.license.id;
                 generatedPlainKey = newLicense.plainLicenseKey;
+                resultingLicense = newLicense.license;
             }
             // Mark payment as approved
             const updatedPayment = await tx.paymentRequest.update({
@@ -302,7 +324,7 @@ export class PaymentService {
                 data: {
                     status: 'APPROVED',
                     licenseId: targetLicenseId,
-                    adminNote: input.adminNote || 'Payment verified and approved.',
+                    adminNote: input.adminNote || (actionResult === 'CREATED' ? 'Payment approved & new license key generated.' : 'Payment approved & license renewed.'),
                     reviewedByAdminId: adminId,
                     reviewedAt: new Date(),
                 },
@@ -316,16 +338,35 @@ export class PaymentService {
                     transactionId: payment.transactionId,
                     licenseId: targetLicenseId,
                     plan: payment.planCode,
-                    generatedNewLicense: !!generatedPlainKey,
+                    validityDays,
+                    maxInstallations,
+                    actionResult,
+                    generatedNewLicense: actionResult === 'CREATED',
                 },
                 ipAddress,
             });
             return {
                 success: true,
-                message: 'Payment approved successfully.',
+                message: actionResult === 'CREATED'
+                    ? `Payment approved! New license key generated for ${validityDays} days and ${maxInstallations} browser seat(s).`
+                    : `Payment approved! Existing license renewed for ${validityDays} additional days.`,
                 paymentRequest: updatedPayment,
                 generatedPlainKey,
                 linkedLicenseId: targetLicenseId,
+                license: {
+                    id: resultingLicense.id,
+                    keyMasked: resultingLicense.keyMasked,
+                    plainKey: generatedPlainKey,
+                    validityDays,
+                    maxInstallations,
+                    status: resultingLicense.status,
+                },
+                plan: {
+                    name: payment.planName || payment.planCode,
+                    validityDays,
+                    maxInstallations,
+                },
+                actionResult,
             };
         });
     }
