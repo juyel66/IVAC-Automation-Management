@@ -336,54 +336,146 @@ export const PaymentsPage: React.FC = () => {
       <Modal
         isOpen={!!approvingPayment}
         onClose={() => setApprovingPayment(null)}
-        title="Approve Customer Payment"
-        maxWidth="sm"
+        title="Approve Payment & Issue License"
+        maxWidth="md"
       >
         <div className="space-y-4 text-xs">
-          <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
-            <div className="flex justify-between">
-              <span className="text-slate-500">Trx ID:</span>
-              <span className="font-mono font-bold text-white">{approvingPayment?.transactionId}</span>
+          {/* Order Details Card */}
+          <div className="p-4 bg-slate-950/80 rounded-2xl border border-slate-800 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400 font-medium">Transaction ID:</span>
+              <span className="font-mono font-bold text-white text-xs bg-slate-900 px-2.5 py-1 rounded border border-slate-700/60 select-all">
+                {approvingPayment?.transactionId}
+              </span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">Plan:</span>
-              <span className="font-bold text-emerald-400">{approvingPayment?.planCode}</span>
+
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400 font-medium">Purchased Plan:</span>
+              <span className="font-bold text-emerald-400 text-sm">
+                {approvingPayment?.planName || approvingPayment?.plan?.name || approvingPayment?.planCode}
+              </span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">Payer Phone:</span>
-              <span className="font-mono text-slate-300">{approvingPayment?.payerContact}</span>
+
+            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80">
+              <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center gap-2">
+                <Clock className="h-4 w-4 text-emerald-400 shrink-0" />
+                <div>
+                  <div className="text-[10px] text-slate-400">Validity Period</div>
+                  <div className="font-bold text-white">
+                    {approvingPayment?.validityDays || approvingPayment?.plan?.validityDays || 30} Days
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center gap-2">
+                <Laptop className="h-4 w-4 text-cyan-400 shrink-0" />
+                <div>
+                  <div className="text-[10px] text-slate-400">Browser Seat Limit</div>
+                  <div className="font-bold text-white">
+                    {approvingPayment?.maxInstallations || approvingPayment?.plan?.maxInstallations || 1} Seat{(approvingPayment?.maxInstallations || approvingPayment?.plan?.maxInstallations || 1) > 1 ? 's' : ''}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 text-[11px]">
+              <span className="text-slate-400">Amount & Provider:</span>
+              <span className="font-mono font-bold text-slate-200">
+                ৳ {approvingPayment?.amount} ({approvingPayment?.paymentMethod}) - {approvingPayment?.payerContact}
+              </span>
             </div>
           </div>
 
-          <p className="text-slate-300">
-            {approvingPayment?.licenseId
-              ? 'This approval will automatically extend the linked license according to the plan duration.'
-              : 'This approval will automatically generate a brand new license key for this customer.'}
-          </p>
+          {/* Action Selection (New Key vs Renew) */}
+          <div className="space-y-2">
+            <label className="block text-slate-300 font-semibold text-xs">
+              License Key Generation Mode:
+            </label>
+            <div className="grid grid-cols-1 gap-2">
+              <label
+                className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${
+                  approveActionType === 'GENERATE_NEW'
+                    ? 'bg-emerald-500/10 border-emerald-500/50 text-white'
+                    : 'bg-slate-950/50 border-slate-800 text-slate-400 hover:border-slate-700'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="approveAction"
+                  checked={approveActionType === 'GENERATE_NEW'}
+                  onChange={() => setApproveActionType('GENERATE_NEW')}
+                  className="mt-0.5 text-emerald-500 focus:ring-emerald-500"
+                />
+                <div>
+                  <div className="font-bold text-emerald-400 flex items-center gap-1.5">
+                    <Sparkles className="h-3.5 w-3.5" />
+                    <span>Generate Brand New License Key (Default)</span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 mt-0.5">
+                    Creates a fresh license key configured for {approvingPayment?.validityDays || 30} days validity and {approvingPayment?.maxInstallations || 1} browser installation seat(s).
+                  </p>
+                </div>
+              </label>
+
+              {approvingPayment?.licenseId && (
+                <label
+                  className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${
+                    approveActionType === 'RENEW_EXISTING'
+                      ? 'bg-cyan-500/10 border-cyan-500/50 text-white'
+                      : 'bg-slate-950/50 border-slate-800 text-slate-400 hover:border-slate-700'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="approveAction"
+                    checked={approveActionType === 'RENEW_EXISTING'}
+                    onChange={() => setApproveActionType('RENEW_EXISTING')}
+                    className="mt-0.5 text-cyan-500 focus:ring-cyan-500"
+                  />
+                  <div>
+                    <div className="font-bold text-cyan-400">
+                      Renew Linked License (ID: {approvingPayment.licenseId.substring(0, 8)}...)
+                    </div>
+                    <p className="text-[11px] text-slate-300 mt-0.5">
+                      Extends the customer's previous license by {approvingPayment?.validityDays || 30} additional days and sets seats to {approvingPayment?.maxInstallations || 1}.
+                    </p>
+                  </div>
+                </label>
+              )}
+            </div>
+          </div>
 
           <div>
-            <label className="block text-slate-400 font-semibold mb-1">Admin Approval Note</label>
+            <label className="block text-slate-400 font-semibold mb-1">Admin Approval Note (Optional)</label>
             <input
               type="text"
               value={approveNote}
               onChange={(e) => setApproveNote(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              placeholder="e.g. Verified with statement"
+              className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-emerald-500"
             />
           </div>
 
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
             <button
               onClick={() => setApprovingPayment(null)}
-              className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 font-medium"
+              className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 font-medium hover:bg-slate-700 transition-colors"
             >
               Cancel
             </button>
             <button
               onClick={() => approveMutation.mutate()}
               disabled={approveMutation.isPending}
-              className="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold transition-all"
+              className="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold transition-all disabled:opacity-50 flex items-center gap-2"
             >
-              {approveMutation.isPending ? 'Approving...' : 'Confirm Approval'}
+              {approveMutation.isPending ? (
+                <span>Generating Key...</span>
+              ) : (
+                <>
+                  <CheckCircle2 className="h-4 w-4" />
+                  <span>Confirm & Generate Key</span>
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -394,39 +486,83 @@ export const PaymentsPage: React.FC = () => {
         isOpen={!!approveResult}
         onClose={() => setApproveResult(null)}
         title="Payment Approved Successfully"
-        maxWidth="sm"
+        maxWidth="md"
       >
-        <div className="space-y-4 text-center text-xs">
-          <p className="text-slate-300">{approveResult?.message}</p>
+        <div className="space-y-4 text-xs">
+          <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+            <CheckCircle2 className="h-5 w-5 shrink-0" />
+            <span className="font-semibold">{approveResult?.message || 'Payment has been verified and approved.'}</span>
+          </div>
 
           {approveResult?.generatedPlainKey && (
-            <div className="p-4 bg-slate-950 border-2 border-emerald-500/80 rounded-2xl">
-              <span className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
-                Generated Plaintext Key
-              </span>
-              <div className="font-mono text-lg font-extrabold text-emerald-400 tracking-wider">
+            <div className="p-5 bg-slate-950 border-2 border-emerald-500/80 rounded-2xl shadow-xl text-center space-y-3">
+              <div className="flex items-center justify-between text-slate-400 text-[11px] pb-1 border-b border-slate-800/80">
+                <span className="uppercase font-bold tracking-wider text-slate-400">
+                  {approveResult.actionResult === 'RENEWED' ? 'Renewed License Key' : 'Generated Plaintext License Key'}
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-mono text-[10px] font-bold">
+                  READY TO USE
+                </span>
+              </div>
+
+              {/* The Key Display */}
+              <div className="p-3.5 bg-slate-900/90 rounded-xl border border-slate-700/60 font-mono text-xl font-extrabold text-emerald-400 tracking-wider select-all break-all">
                 {approveResult.generatedPlainKey}
               </div>
+
+              {/* Key Details / Criteria Badges */}
+              <div className="flex items-center justify-center gap-3 pt-1">
+                {(approveResult.license?.validityDays || approveResult.plan?.validityDays) && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 font-semibold">
+                    <Clock className="h-3.5 w-3.5 text-emerald-400" />
+                    <span>{approveResult.license?.validityDays || approveResult.plan?.validityDays} Days Validity</span>
+                  </span>
+                )}
+                {(approveResult.license?.maxInstallations || approveResult.plan?.maxInstallations) && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 font-semibold">
+                    <Laptop className="h-3.5 w-3.5 text-cyan-400" />
+                    <span>{approveResult.license?.maxInstallations || approveResult.plan?.maxInstallations} Browser Seat(s)</span>
+                  </span>
+                )}
+              </div>
+
+              {/* Big Copy Button */}
               <button
+                type="button"
                 onClick={() => {
                   navigator.clipboard.writeText(approveResult.generatedPlainKey!);
                   setCopiedKey(true);
                   setTimeout(() => setCopiedKey(false), 2000);
                 }}
-                className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-500 text-slate-950 font-bold text-[11px]"
+                className={`w-full py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 text-sm transition-all shadow-md ${
+                  copiedKey
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950'
+                }`}
               >
-                {copiedKey ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                <span>{copiedKey ? 'Copied!' : 'Copy Key'}</span>
+                {copiedKey ? (
+                  <>
+                    <Check className="h-4 w-4" />
+                    <span>License Key Copied to Clipboard!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-4 w-4" />
+                    <span>Copy License Key for Customer</span>
+                  </>
+                )}
               </button>
             </div>
           )}
 
-          <button
-            onClick={() => setApproveResult(null)}
-            className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold"
-          >
-            Done
-          </button>
+          <div className="pt-2">
+            <button
+              onClick={() => setApproveResult(null)}
+              className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold transition-colors"
+            >
+              Done & Return to Payments
+            </button>
+          </div>
         </div>
       </Modal>
 
