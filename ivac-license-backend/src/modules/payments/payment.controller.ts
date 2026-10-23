@@ -4,6 +4,14 @@ import { PaymentService } from './payment.service.js';
 import { sendSuccess } from '../../utils/response.js';
 
 export class PaymentController {
+  public static async getPlans(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await PaymentService.getPublicPlans();
+      sendSuccess(res, result);
+    } catch (err) {
+      next(err);
+    }
+  }
   public static async getInstructions(req: Request, res: Response, next: NextFunction) {
     try {
       const result = await PaymentService.getPublicPaymentInstructions();
