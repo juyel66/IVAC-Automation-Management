@@ -25,6 +25,7 @@ export const AdminLayout: React.FC = () => {
     if (pathname === '/') return 'Executive Performance Dashboard';
     if (pathname.startsWith('/licenses/')) return 'License Entitlement Details';
     if (pathname.startsWith('/licenses')) return 'License Key Management';
+    if (pathname.startsWith('/plans')) return 'Plans & Subscription Pricing';
     if (pathname.startsWith('/payments')) return 'Manual Payment Verification Queue';
     if (pathname.startsWith('/audit-logs')) return 'Security Audit Trail';
     if (pathname.startsWith('/settings')) return 'System & Payment Gateway Settings';
