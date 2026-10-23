@@ -5,6 +5,8 @@ import {
   CheckCircle2,
   XCircle,
   Clock,
+  Laptop,
+  Sparkles,
   ShieldAlert,
   CreditCard,
   Copy,
