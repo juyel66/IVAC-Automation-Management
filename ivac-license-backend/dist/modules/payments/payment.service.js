@@ -3,6 +3,27 @@ import { AuditService } from '../../services/audit.service.js';
 import { LicenseService } from '../licenses/license.service.js';
 export class PaymentService {
     /**
+     * Retrieves public active subscription plans
+     */
+    static async getPublicPlans() {
+        const plans = await prisma.paymentPlan.findMany({
+            where: { isActive: true },
+            orderBy: { sortOrder: 'asc' },
+        });
+        return plans.map((p) => ({
+            id: p.id,
+            code: p.code,
+            name: p.name,
+            validityDays: p.validityDays,
+            maxInstallations: p.maxInstallations,
+            price: Number(p.price),
+            currency: p.currency,
+            description: p.description || null,
+            isActive: p.isActive,
+            sortOrder: p.sortOrder,
+        }));
+    }
+    /**
      * Retrieves public payment instructions and available plans
      */
     static async getPublicPaymentInstructions() {
@@ -50,12 +71,14 @@ export class PaymentService {
                 instructionText: settings.instructionText,
             },
             plans: plans.map((p) => ({
+                id: p.id,
                 code: p.code,
                 name: p.name,
                 validityDays: p.validityDays,
                 maxInstallations: p.maxInstallations,
                 price: Number(p.price),
                 currency: p.currency,
+                description: p.description || null,
             })),
         };
     }
@@ -84,21 +107,34 @@ export class PaymentService {
                 };
             }
         }
-        // Look up plan
-        const plan = await prisma.paymentPlan.findUnique({
-            where: { code: input.planCode },
-        });
-        if (!plan) {
-            throw { status: 400, message: 'Invalid subscription plan selected.', code: 'INVALID_PLAN' };
+        // Look up plan by planId or planCode
+        let plan = null;
+        if (input.planId) {
+            plan = await prisma.paymentPlan.findUnique({
+                where: { id: input.planId },
+            });
+        }
+        if (!plan && input.planCode) {
+            plan = await prisma.paymentPlan.findUnique({
+                where: { code: input.planCode },
+            });
+        }
+        if (!plan || !plan.isActive) {
+            throw { status: 400, message: 'Invalid or inactive subscription plan selected.', code: 'INVALID_PLAN' };
         }
         const paymentRequest = await prisma.paymentRequest.create({
             data: {
                 transactionId: trxId,
                 paymentMethod: input.paymentMethod,
+                planId: plan.id,
                 planCode: plan.code,
+                planName: plan.name,
                 amount: plan.price,
                 currency: plan.currency,
+                validityDays: plan.validityDays,
+                maxInstallations: plan.maxInstallations,
                 payerContact: input.payerContact.trim(),
+                customerName: input.customerName?.trim() || input.payerName?.trim() || null,
                 licenseId: input.licenseId || null,
                 status: 'PENDING',
             },
@@ -110,8 +146,15 @@ export class PaymentService {
             details: {
                 transactionId: trxId,
                 method: input.paymentMethod,
+                planId: plan.id,
                 plan: plan.code,
+                planName: plan.name,
+                amount: Number(plan.price),
+                currency: plan.currency,
+                validityDays: plan.validityDays,
+                maxInstallations: plan.maxInstallations,
                 payerContact: input.payerContact,
+                customerName: input.customerName || input.payerName,
                 licenseId: input.licenseId,
             },
             ipAddress,
@@ -120,6 +163,15 @@ export class PaymentService {
             requestId: paymentRequest.id,
             transactionId: trxId,
             status: 'PENDING',
+            snapshot: {
+                planId: plan.id,
+                planCode: plan.code,
+                planName: plan.name,
+                price: Number(plan.price),
+                currency: plan.currency,
+                validityDays: plan.validityDays,
+                maxInstallations: plan.maxInstallations,
+            },
             message: 'Payment request received successfully. It is now awaiting manual admin verification. Your license will be issued/renewed once payment is confirmed.',
         };
     }
@@ -138,6 +190,9 @@ export class PaymentService {
             where.OR = [
                 { transactionId: { contains: term, mode: 'insensitive' } },
                 { payerContact: { contains: term, mode: 'insensitive' } },
+                { customerName: { contains: term, mode: 'insensitive' } },
+                { planName: { contains: term, mode: 'insensitive' } },
+                { planCode: { contains: term, mode: 'insensitive' } },
                 { licenseId: { contains: term, mode: 'insensitive' } },
                 { adminNote: { contains: term, mode: 'insensitive' } },
             ];
@@ -158,6 +213,14 @@ export class PaymentService {
                             customerName: true,
                         },
                     },
+                    plan: {
+                        select: {
+                            id: true,
+                            code: true,
+                            name: true,
+                            price: true,
+                        },
+                    },
                 },
             }),
         ]);
@@ -176,12 +239,13 @@ export class PaymentService {
     }
     /**
      * Admin approves a payment request (Idempotent!)
+     * Uses authoritative snapshot terms recorded at submission time.
      */
     static async approvePayment(paymentId, input, adminId, ipAddress) {
         return await prisma.$transaction(async (tx) => {
             const payment = await tx.paymentRequest.findUnique({
                 where: { id: paymentId },
-                include: { license: true },
+                include: { license: true, plan: true },
             });
             if (!payment) {
                 throw { status: 404, message: 'Payment request not found.', code: 'NOT_FOUND' };
@@ -194,12 +258,10 @@ export class PaymentService {
                     isAlreadyApproved: true,
                 };
             }
-            // Find plan details
-            const plan = await tx.paymentPlan.findUnique({
-                where: { code: payment.planCode },
-            });
-            const validityDays = plan ? plan.validityDays : 30;
-            const maxInstallations = plan ? plan.maxInstallations : 1;
+            // Authoritative purchase snapshot terms:
+            // Always prioritize snapshot saved at payment submission time so editing a plan later does NOT alter existing purchase terms!
+            const validityDays = payment.validityDays ?? payment.plan?.validityDays ?? 30;
+            const maxInstallations = payment.maxInstallations ?? payment.plan?.maxInstallations ?? 1;
             let targetLicenseId = input.targetLicenseId || payment.licenseId;
             let generatedPlainKey;
             if (targetLicenseId) {
@@ -218,17 +280,18 @@ export class PaymentService {
                         expiresAt: newExpiresAt,
                         activatedAt: targetLic.activatedAt || now,
                         updatedByAdminId: adminId,
-                        adminNotes: `${targetLic.adminNotes || ''}\n[Approved Payment ${payment.transactionId}]`.trim(),
+                        adminNotes: `${targetLic.adminNotes || ''}\n[Approved Payment ${payment.transactionId} - ${payment.planName || payment.planCode} (${validityDays}d)]`.trim(),
                     },
                 });
             }
             else {
-                // No existing license -> generate a new license for this approved payment
+                // No existing license -> generate a new license for this approved payment using snapshot terms
                 const newLicense = await LicenseService.createLicense({
                     validityDays,
                     maxInstallations,
+                    customerName: payment.customerName || undefined,
                     customerContact: payment.payerContact,
-                    adminNotes: `Generated from manual payment TrxID: ${payment.transactionId}`,
+                    adminNotes: `Generated from manual payment TrxID: ${payment.transactionId} [${payment.planName || payment.planCode}]`,
                 }, adminId, ipAddress);
                 targetLicenseId = newLicense.license.id;
                 generatedPlainKey = newLicense.plainLicenseKey;
