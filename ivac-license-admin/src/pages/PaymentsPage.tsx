@@ -192,8 +192,32 @@ export const PaymentsPage: React.FC = () => {
                         {p.transactionId}
                       </div>
                       {p.license && (
-                        <div className="text-[10px] text-slate-500 font-mono">
-                          Linked: {p.license.keyMasked}
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <span className="text-[10px] text-emerald-400 font-mono font-medium">
+                            {p.license.plainKey || p.license.keyMasked}
+                          </span>
+                          {(p.license.plainKey || p.license.keyMasked) && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const key = p.license?.plainKey || p.license?.keyMasked;
+                                if (key) {
+                                  navigator.clipboard.writeText(key);
+                                  setCopiedTableKeyId(p.id);
+                                  setTimeout(() => setCopiedTableKeyId(null), 2000);
+                                }
+                              }}
+                              title="Copy License Key"
+                              className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
+                            >
+                              {copiedTableKeyId === p.id ? (
+                                <Check className="h-3 w-3 text-emerald-400" />
+                              ) : (
+                                <Copy className="h-3 w-3" />
+                              )}
+                            </button>
+                          )}
                         </div>
                       )}
                     </td>
@@ -248,6 +272,7 @@ export const PaymentsPage: React.FC = () => {
                           <button
                             onClick={() => {
                               setApprovingPayment(p);
+                              setApproveActionType('GENERATE_NEW');
                               setApproveNote('Verified with provider');
                             }}
                             className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[11px] font-bold transition-colors"
