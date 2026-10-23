@@ -65,12 +65,15 @@ export declare class PaymentService {
                 id: string;
                 status: import("@prisma/client").$Enums.LicenseStatus;
                 keyMasked: string;
+                plainKey: string | null;
                 customerName: string | null;
             } | null;
             plan: {
                 code: string;
                 id: string;
                 name: string;
+                validityDays: number;
+                maxInstallations: number;
                 price: import("@prisma/client/runtime/library").Decimal;
             } | null;
             id: string;
@@ -102,6 +105,7 @@ export declare class PaymentService {
     /**
      * Admin approves a payment request (Idempotent!)
      * Uses authoritative snapshot terms recorded at submission time.
+     * Always generates and returns the license key according to the plan criteria and browser seats!
      */
     static approvePayment(paymentId: string, input: ApprovePaymentInput, adminId: string, ipAddress?: string): Promise<{
         message: string;
@@ -162,9 +166,31 @@ export declare class PaymentService {
             reviewedAt: Date | null;
         };
         isAlreadyApproved: boolean;
+        generatedPlainKey: string | undefined;
+        linkedLicenseId: string | null;
+        license: {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            status: import("@prisma/client").$Enums.LicenseStatus;
+            keyHash: string;
+            keyMasked: string;
+            plainKey: string | null;
+            validityDays: number;
+            activatedAt: Date | null;
+            expiresAt: Date | null;
+            maxInstallations: number;
+            currentInstallations: number;
+            customerName: string | null;
+            customerContact: string | null;
+            adminNotes: string | null;
+            lastValidatedAt: Date | null;
+            createdByAdminId: string | null;
+            updatedByAdminId: string | null;
+        } | null;
         success?: undefined;
-        generatedPlainKey?: undefined;
-        linkedLicenseId?: undefined;
+        plan?: undefined;
+        actionResult?: undefined;
     } | {
         success: boolean;
         message: string;
@@ -189,8 +215,22 @@ export declare class PaymentService {
             reviewedByAdminId: string | null;
             reviewedAt: Date | null;
         };
-        generatedPlainKey: string | undefined;
+        generatedPlainKey: string;
         linkedLicenseId: string;
+        license: {
+            id: any;
+            keyMasked: any;
+            plainKey: string;
+            validityDays: number;
+            maxInstallations: number;
+            status: any;
+        };
+        plan: {
+            name: string;
+            validityDays: number;
+            maxInstallations: number;
+        };
+        actionResult: "CREATED" | "RENEWED";
         isAlreadyApproved?: undefined;
     }>;
     /**
