@@ -81,10 +81,15 @@ export declare class LicenseService {
             updatedAt: Date;
             status: import("@prisma/client").$Enums.PaymentStatus;
             licenseId: string | null;
+            validityDays: number | null;
+            maxInstallations: number | null;
+            customerName: string | null;
             adminNote: string | null;
             transactionId: string;
             paymentMethod: string;
+            planId: string | null;
             planCode: string;
+            planName: string | null;
             amount: import("@prisma/client/runtime/library").Decimal;
             currency: string;
             payerContact: string;
