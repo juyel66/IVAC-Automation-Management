@@ -1,6 +1,21 @@
 import { SubmitPaymentRequestInput, ApprovePaymentInput, RejectPaymentInput, UpdatePaymentSettingsInput, ListPaymentsQuery } from './payment.schema.js';
 export declare class PaymentService {
     /**
+     * Retrieves public active subscription plans
+     */
+    static getPublicPlans(): Promise<{
+        id: string;
+        code: string;
+        name: string;
+        validityDays: number;
+        maxInstallations: number;
+        price: number;
+        currency: string;
+        description: any;
+        isActive: boolean;
+        sortOrder: number;
+    }[]>;
+    /**
      * Retrieves public payment instructions and available plans
      */
     static getPublicPaymentInstructions(): Promise<{
@@ -12,12 +27,14 @@ export declare class PaymentService {
             instructionText: string | null;
         };
         plans: {
+            id: string;
             code: string;
             name: string;
             validityDays: number;
             maxInstallations: number;
             price: number;
             currency: string;
+            description: any;
         }[];
     }>;
     /**
@@ -27,6 +44,15 @@ export declare class PaymentService {
         requestId: string;
         transactionId: string;
         status: string;
+        snapshot: {
+            planId: string;
+            planCode: string;
+            planName: string;
+            price: number;
+            currency: string;
+            validityDays: number;
+            maxInstallations: number;
+        };
         message: string;
     }>;
     /**
@@ -41,15 +67,26 @@ export declare class PaymentService {
                 keyMasked: string;
                 customerName: string | null;
             } | null;
+            plan: {
+                code: string;
+                id: string;
+                name: string;
+                price: import("@prisma/client/runtime/library").Decimal;
+            } | null;
             id: string;
             createdAt: Date;
             updatedAt: Date;
             status: import("@prisma/client").$Enums.PaymentStatus;
             licenseId: string | null;
+            validityDays: number | null;
+            maxInstallations: number | null;
+            customerName: string | null;
             adminNote: string | null;
             transactionId: string;
             paymentMethod: string;
+            planId: string | null;
             planCode: string;
+            planName: string | null;
             currency: string;
             payerContact: string;
             reviewedByAdminId: string | null;
@@ -64,6 +101,7 @@ export declare class PaymentService {
     }>;
     /**
      * Admin approves a payment request (Idempotent!)
+     * Uses authoritative snapshot terms recorded at submission time.
      */
     static approvePayment(paymentId: string, input: ApprovePaymentInput, adminId: string, ipAddress?: string): Promise<{
         message: string;
@@ -88,16 +126,35 @@ export declare class PaymentService {
                 createdByAdminId: string | null;
                 updatedByAdminId: string | null;
             } | null;
+            plan: {
+                code: string;
+                id: string;
+                isActive: boolean;
+                createdAt: Date;
+                updatedAt: Date;
+                name: string;
+                validityDays: number;
+                maxInstallations: number;
+                currency: string;
+                description: string | null;
+                price: import("@prisma/client/runtime/library").Decimal;
+                sortOrder: number;
+            } | null;
         } & {
             id: string;
             createdAt: Date;
             updatedAt: Date;
             status: import("@prisma/client").$Enums.PaymentStatus;
             licenseId: string | null;
+            validityDays: number | null;
+            maxInstallations: number | null;
+            customerName: string | null;
             adminNote: string | null;
             transactionId: string;
             paymentMethod: string;
+            planId: string | null;
             planCode: string;
+            planName: string | null;
             amount: import("@prisma/client/runtime/library").Decimal;
             currency: string;
             payerContact: string;
@@ -117,10 +174,15 @@ export declare class PaymentService {
             updatedAt: Date;
             status: import("@prisma/client").$Enums.PaymentStatus;
             licenseId: string | null;
+            validityDays: number | null;
+            maxInstallations: number | null;
+            customerName: string | null;
             adminNote: string | null;
             transactionId: string;
             paymentMethod: string;
+            planId: string | null;
             planCode: string;
+            planName: string | null;
             amount: import("@prisma/client/runtime/library").Decimal;
             currency: string;
             payerContact: string;
@@ -140,10 +202,15 @@ export declare class PaymentService {
         updatedAt: Date;
         status: import("@prisma/client").$Enums.PaymentStatus;
         licenseId: string | null;
+        validityDays: number | null;
+        maxInstallations: number | null;
+        customerName: string | null;
         adminNote: string | null;
         transactionId: string;
         paymentMethod: string;
+        planId: string | null;
         planCode: string;
+        planName: string | null;
         amount: import("@prisma/client/runtime/library").Decimal;
         currency: string;
         payerContact: string;
