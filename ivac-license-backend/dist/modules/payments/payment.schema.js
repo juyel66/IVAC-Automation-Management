@@ -15,6 +15,7 @@ export const SubmitPaymentRequestSchema = z.object({
 export const ApprovePaymentSchema = z.object({
     adminNote: z.string().max(500).optional(),
     targetLicenseId: z.string().uuid().optional(), // In case admin manually overrides/links a specific license
+    actionType: z.enum(['GENERATE_NEW', 'RENEW_EXISTING']).optional(),
 });
 export const RejectPaymentSchema = z.object({
     adminNote: z.string().min(2, 'Reason for rejection is required').max(500),
