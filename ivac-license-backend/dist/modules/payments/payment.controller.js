@@ -1,6 +1,15 @@
 import { PaymentService } from './payment.service.js';
 import { sendSuccess } from '../../utils/response.js';
 export class PaymentController {
+    static async getPlans(req, res, next) {
+        try {
+            const result = await PaymentService.getPublicPlans();
+            sendSuccess(res, result);
+        }
+        catch (err) {
+            next(err);
+        }
+    }
     static async getInstructions(req, res, next) {
         try {
             const result = await PaymentService.getPublicPaymentInstructions();
